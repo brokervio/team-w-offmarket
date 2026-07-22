@@ -1,0 +1,41 @@
+# ============================================================
+# TEAM W OFF-MARKET PORTAL - ENVIRONMENT FILE
+# Copy this file to .env.local and fill in your values.
+# In Vercel: Settings > Environment Variables, add each one.
+# ============================================================
+
+# ---------- SUPABASE (supabase.com > Project > Settings > API) ----------
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT-REF.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-public-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+DATABASE_URL=postgresql://postgres.YOUR-REF:PASSWORD@aws-0-us-east-1.pooler.supabase.com:6543/postgres
+
+# ---------- TWILIO (console.twilio.com) ----------
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your-auth-token
+TWILIO_VERIFY_SERVICE_SID=VAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_MESSAGING_SERVICE_SID=MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_PHONE_NUMBER=+18455551234
+
+# ---------- GOHIGHLEVEL (Automation > Workflow > Inbound Webhook) ----------
+GHL_WEBHOOK_SIGNUP_URL=https://services.leadconnectorhq.com/hooks/xxxx/webhook-trigger/xxxx
+GHL_WEBHOOK_LEAD_URL=https://services.leadconnectorhq.com/hooks/xxxx/webhook-trigger/xxxx
+GHL_WEBHOOK_EXPIRY_URL=https://services.leadconnectorhq.com/hooks/xxxx/webhook-trigger/xxxx
+
+# ---------- GOOGLE MAPS ----------
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=AIzaSyXXXXXXXXXXXXXXXXXXXXXXX
+GOOGLE_MAPS_SERVER_KEY=AIzaSyXXXXXXXXXXXXXXXXXXXXXXX
+
+# ---------- EMAIL (resend.com > API Keys) ----------
+RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxx
+EMAIL_FROM=Team W Realty <offmarket@teamwny.com>
+
+# ---------- APP CONFIG ----------
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_SITE_NAME=Team W Off-Market
+ACCESS_INITIAL_DAYS=14
+ACCESS_EXTENSION_DAYS=28
+
+# Generate both with: openssl rand -hex 32
+CRON_SECRET=paste-64-char-random-hex-here
+WEBHOOK_SIGNING_SECRET=paste-64-char-random-hex-here

@@ -1,0 +1,6 @@
+{
+  "crons": [
+    { "path": "/api/cron/expiry-warnings", "schedule": "0 14 * * *" },
+    { "path": "/api/cron/expire-sweep", "schedule": "0 * * * *" }
+  ]
+}

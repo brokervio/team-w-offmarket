@@ -1,0 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --teal: #1A9E9E;
+  --teal-dark: #128080;
+  --teal-light: #E6F5F5;
+  --navy: #1B3F7A;
+  --navy-dark: #132C56;
+  --surface: #F4F7F9;
+}
+
+body {
+  @apply bg-white text-body font-sans antialiased;
+}
+
+h1, h2, h3, h4 { @apply text-navy font-bold tracking-tight; }
+
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-2 bg-teal text-white font-semibold
+         px-6 py-3 rounded-btn hover:bg-navy transition-colors text-center
+         disabled:opacity-50 disabled:pointer-events-none;
+}
+.btn-secondary {
+  @apply inline-flex items-center justify-center gap-2 border-2 border-teal text-teal font-semibold
+         px-6 py-3 rounded-btn hover:bg-teal-light transition-colors text-center;
+}
+.btn-navy {
+  @apply inline-flex items-center justify-center gap-2 bg-navy text-white font-semibold
+         px-6 py-3 rounded-btn hover:bg-navy-dark transition-colors text-center;
+}
+.card {
+  @apply bg-white rounded-card border border-slate-200 shadow-sm overflow-hidden;
+}
+.badge {
+  @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold;
+}
+.badge-teal { @apply badge bg-teal text-white; }
+.badge-navy { @apply badge bg-navy text-white; }
+.badge-gray { @apply badge bg-slate-200 text-slate-600; }
+.badge-internal { @apply badge bg-navy-dark text-white; }
+.chip-access {
+  @apply inline-flex items-center gap-1.5 border border-teal text-navy bg-teal-light
+         px-3 py-1.5 rounded-full text-sm font-semibold;
+}
+.input {
+  @apply w-full border border-slate-300 rounded-btn px-4 py-3 text-body
+         focus:outline-none focus:ring-2 focus:ring-teal focus:border-teal;
+}
+.label { @apply block text-sm font-semibold text-navy mb-1.5; }
