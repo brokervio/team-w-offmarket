@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
 const PROSPECT_GATED = ["/browse", "/listing", "/favorites"];
 const STAFF_ONLY = ["/agent", "/admin"];
@@ -12,7 +12,8 @@ export async function middleware(req: NextRequest) {
     {
       cookies: {
         getAll: () => req.cookies.getAll(),
-        setAll: (list) => list.forEach(({ name, value }) => res.cookies.set(name, value))
+        setAll: (list: { name: string; value: string; options: CookieOptions }[]) =>
+          list.forEach(({ name, value }) => res.cookies.set(name, value))
       }
     }
   );
