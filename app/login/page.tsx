@@ -19,7 +19,7 @@ function LoginForm() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setBusy(false);
     if (error) { setErr("Wrong email or password."); return; }
-    router.push(params.get("next") ?? "/browse");
+    router.push(params.get("next") ?? "/dashboard");
   }
 
   return (

@@ -30,7 +30,7 @@ export async function middleware(req: NextRequest) {
   }
 
   if (path === "/login") {
-    return NextResponse.redirect(new URL("/browse", req.url));
+    return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
   if (path.startsWith("/admin")) {
