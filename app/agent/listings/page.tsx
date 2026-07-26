@@ -19,8 +19,13 @@ const STATUS_STYLE: Record<string, string> = {
 
 export default async function AgentListings() {
   const supabase = supabaseServer();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: me } = await supabase.from("profiles")
+    .select("role").eq("id", user!.id).single();
+  const isAdmin = me?.role === "admin";
+
   const { data: listings } = await supabase.from("listings")
-    .select("id, status, public_name, town, exact_address, created_at")
+    .select("id, status, public_name, town, exact_address, created_at, created_by")
     .order("created_at", { ascending: false });
 
   return (
@@ -43,9 +48,11 @@ export default async function AgentListings() {
               <span className={"badge shrink-0 " + (STATUS_STYLE[l.status] ?? "badge-gray")}>
                 {STATUS_LABEL[l.status] ?? l.status}
               </span>
-              <Link href={"/agent/listings/" + l.id} className="btn-secondary !py-1.5 !px-3 text-sm shrink-0">
-                <Pencil size={14} /> Edit
-              </Link>
+              {(isAdmin || l.created_by === user!.id) && (
+                <Link href={"/agent/listings/" + l.id} className="btn-secondary !py-1.5 !px-3 text-sm shrink-0">
+                  <Pencil size={14} /> Edit
+                </Link>
+              )}
             </div>
           ))}
           {(!listings || !listings.length) && <p className="p-8 text-center text-sm text-slate-500">No listings yet. Add the first one.</p>}

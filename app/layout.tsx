@@ -3,7 +3,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Team W Inventory | Internal",
-  description: "Internal off-market inventory tool for Team W Realty."
+  description: "Internal off-market inventory tool for Team W Realty.",
+  icons: { icon: "/logo.png" }
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

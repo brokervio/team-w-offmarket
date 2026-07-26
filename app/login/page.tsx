@@ -24,9 +24,9 @@ function LoginForm() {
 
   return (
     <div className="card w-full max-w-md p-8">
-      <Link href="/" className="flex items-baseline gap-1 justify-center mb-6">
-        <span className="text-teal font-extrabold text-2xl">team W</span>
-        <span className="text-navy font-semibold">Off-Market</span>
+      <Link href="/" className="flex justify-center mb-6">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="Team W Realty" className="h-16 w-auto" />
       </Link>
       <h1 className="text-2xl text-center mb-1">Team sign in</h1>
       <p className="text-center text-sm text-slate-500 mb-6">Internal inventory portal for Team W agents.</p>

@@ -1,8 +1,8 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-client";
-import { Lock, Upload, Trash2, ImagePlus } from "lucide-react";
+import { Lock, Upload, Trash2, ImagePlus, UserCheck } from "lucide-react";
 
 const TOWNS = ["Monsey","Spring Valley","Airmont","Suffern","Nanuet","New Hempstead","Pomona","Wesley Hills","New Square","Monroe","Kiryas Joel","Monticello","Chester","Other"];
 
@@ -16,16 +16,20 @@ const STATUS_OPTIONS = [
 ];
 
 export type ExistingPhoto = { id: string; url: string };
+export type TeamMember = { id: string; full_name: string | null };
 
 export default function ListingForm({
-  listingId, initial, existingPhotos = []
+  listingId, initial, existingPhotos = [], team, currentUserId
 }: {
   listingId?: string;
   initial?: Record<string, any>;
   existingPhotos?: ExistingPhoto[];
+  team: TeamMember[];
+  currentUserId: string;
 }) {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
+  const addressInput = useRef<HTMLInputElement>(null);
   const [f, setF] = useState<Record<string, any>>({
     exact_address: initial?.exact_address ?? "",
     town: initial?.town ?? "Monsey",
@@ -39,9 +43,17 @@ export default function ListingForm({
     baths: initial?.baths ?? "",
     sqft: initial?.sqft ?? "",
     lot_desc: initial?.lot_desc ?? "",
+    // representation
+    listing_rep: initial?.is_open_listing ? "open" : (initial?.listing_agent_id ?? currentUserId),
+    commission: initial?.commission ?? "",
+    // reference
+    mls_number: initial?.mls_number ?? "",
+    photos_url: initial?.photos_url ?? "",
+    // marketing
     public_name: initial?.public_name ?? "",
     neighborhood_label: initial?.neighborhood_label ?? "",
     description_public: initial?.description_public ?? "",
+    // internal
     cobroke_terms: initial?.cobroke_terms ?? "",
     source: initial?.source ?? "",
     notes_internal: initial?.notes_internal ?? ""
@@ -49,10 +61,36 @@ export default function ListingForm({
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [photos, setPhotos] = useState<ExistingPhoto[]>(existingPhotos);
+  const [dragOver, setDragOver] = useState(false);
   const [err, setErr] = useState("");
   const [progress, setProgress] = useState("");
   const [busy, setBusy] = useState(false);
   const set = (k: string, v: any) => setF(prev => ({ ...prev, [k]: v }));
+
+  // Google Places autocomplete lights up automatically once a real
+  // NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is configured.
+  useEffect(() => {
+    const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    if (!key || key.includes("XXXX")) return;
+    const w = window as any;
+    const attach = () => {
+      if (!addressInput.current || !w.google?.maps?.places) return;
+      const ac = new w.google.maps.places.Autocomplete(addressInput.current, {
+        fields: ["formatted_address"],
+        componentRestrictions: { country: "us" }
+      });
+      ac.addListener("place_changed", () => {
+        const place = ac.getPlace();
+        if (place?.formatted_address) set("exact_address", place.formatted_address);
+      });
+    };
+    if (w.google?.maps?.places) { attach(); return; }
+    const s = document.createElement("script");
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places`;
+    s.async = true;
+    s.onload = attach;
+    document.head.appendChild(s);
+  }, []);
 
   function suggestPublicName() {
     if (f.public_name) return;
@@ -63,9 +101,10 @@ export default function ListingForm({
     if (street) set("public_name", `${type}, ${street} Area`);
   }
 
-  function pickFiles(picked: FileList | null) {
+  function pickFiles(picked: FileList | File[] | null) {
     if (!picked) return;
     const arr = Array.from(picked).filter(file => file.type.startsWith("image/"));
+    if (!arr.length) return;
     setFiles(prev => [...prev, ...arr]);
     setPreviews(prev => [...prev, ...arr.map(file => URL.createObjectURL(file))]);
   }
@@ -96,7 +135,8 @@ export default function ListingForm({
       return `${type} in ${f.town}`;
     };
 
-    const payload = {
+    const open = f.listing_rep === "open";
+    const payload: Record<string, any> = {
       exact_address: f.exact_address.trim(),
       town: f.town,
       property_type: f.property_type,
@@ -109,6 +149,11 @@ export default function ListingForm({
       baths: f.baths ? Number(f.baths) : null,
       sqft: f.sqft ? Number(f.sqft) : null,
       lot_desc: f.lot_desc || null,
+      is_open_listing: open,
+      listing_agent_id: open ? null : f.listing_rep,
+      commission: open ? null : (f.commission || null),
+      mls_number: f.mls_number || null,
+      photos_url: f.photos_url || null,
       public_name: f.public_name.trim() || fallbackName(),
       neighborhood_label: f.neighborhood_label || null,
       description_public: f.description_public || null,
@@ -123,12 +168,12 @@ export default function ListingForm({
       const { error } = await supabase.from("listings").update(payload).eq("id", id);
       if (error) { setBusy(false); setErr(friendly(error.message)); return; }
     } else {
+      payload.created_by = currentUserId;
       const { data, error } = await supabase.from("listings").insert(payload).select("id").single();
       if (error || !data) { setBusy(false); setErr(friendly(error?.message ?? "Could not save.")); return; }
       id = data.id;
     }
 
-    // upload any newly added photos through the server (service role handles storage)
     for (let i = 0; i < files.length; i++) {
       setProgress(`Uploading photo ${i + 1} of ${files.length}...`);
       const fd = new FormData();
@@ -153,6 +198,9 @@ export default function ListingForm({
     if (msg.toLowerCase().includes("street address")) {
       return "Blocked for safety: the marketing name or description appears to contain a street address. Addresses stay internal. Remove it from those fields and save again.";
     }
+    if (msg.toLowerCase().includes("row-level security")) {
+      return "You can only edit listings you added. Ask an admin to make this change.";
+    }
     return msg;
   }
 
@@ -165,7 +213,8 @@ export default function ListingForm({
         <p className="text-xs font-bold text-teal">PROPERTY</p>
         <div className="mt-4 space-y-4">
           <div>{label("Address")}
-            <input className="input" value={f.exact_address} onChange={e => set("exact_address", e.target.value)}
+            <input ref={addressInput} className="input" value={f.exact_address}
+                   onChange={e => set("exact_address", e.target.value)}
                    onBlur={suggestPublicName} placeholder="45 Summit Avenue, Monticello, NY" /></div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div>{label("Town")}
@@ -205,40 +254,75 @@ export default function ListingForm({
         </div>
       </section>
 
+      {/* REPRESENTATION */}
+      <section className="mt-4 card p-5">
+        <p className="text-xs font-bold text-teal flex items-center gap-1.5"><UserCheck size={14} /> LISTING AGENT</p>
+        <div className="mt-4 grid sm:grid-cols-2 gap-4">
+          <div>{label("Who represents this listing?")}
+            <select className="input" value={f.listing_rep} onChange={e => set("listing_rep", e.target.value)}>
+              {team.map(m => <option key={m.id} value={m.id}>{m.full_name || "Unnamed"}{m.id === currentUserId ? " (me)" : ""}</option>)}
+              <option value="open">Open listing: anyone goes direct to the seller</option>
+            </select></div>
+          {f.listing_rep !== "open" && (
+            <div>{label("Commission offered")}
+              <input className="input" value={f.commission} onChange={e => set("commission", e.target.value)}
+                     placeholder="2% or $5,000 flat" /></div>
+          )}
+        </div>
+        {f.listing_rep === "open" && (
+          <p className="mt-3 text-sm text-slate-500">Open listing: no listing agent and no commission is recorded. Buyers or their agents contact the seller directly.</p>
+        )}
+      </section>
+
       {/* PHOTOS */}
       <section className="mt-4 card p-5">
         <p className="text-xs font-bold text-teal">PHOTOS</p>
-        <div className="mt-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-          {photos.map(p => (
-            <div key={p.id} className="relative aspect-square rounded-btn overflow-hidden border border-slate-200 group">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.url} alt="Listing photo" className="w-full h-full object-cover" />
-              <button type="button" onClick={() => removeExistingPhoto(p.id)}
-                      className="absolute top-1.5 right-1.5 bg-white/90 rounded-full p-1.5 text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Remove photo">
-                <Trash2 size={14} />
-              </button>
-            </div>
-          ))}
-          {previews.map((src, i) => (
-            <div key={src} className="relative aspect-square rounded-btn overflow-hidden border-2 border-teal group">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={src} alt="New photo" className="w-full h-full object-cover" />
-              <button type="button" onClick={() => removeNewFile(i)}
-                      className="absolute top-1.5 right-1.5 bg-white/90 rounded-full p-1.5 text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Remove photo">
-                <Trash2 size={14} />
-              </button>
-            </div>
-          ))}
-          <button type="button" onClick={() => fileInput.current?.click()}
-                  className="aspect-square rounded-btn border-2 border-dashed border-slate-300 hover:border-teal hover:text-teal text-slate-400 flex flex-col items-center justify-center gap-1.5 text-xs font-semibold transition-colors">
-            <ImagePlus size={22} /> Add photos
-          </button>
+        <div
+          onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={e => { e.preventDefault(); setDragOver(false); pickFiles(e.dataTransfer.files); }}
+          className={"mt-4 rounded-btn transition-colors " + (dragOver ? "bg-teal-light outline-dashed outline-2 outline-teal p-2" : "")}
+        >
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+            {photos.map(p => (
+              <div key={p.id} className="relative aspect-square rounded-btn overflow-hidden border border-slate-200 group">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.url} alt="Listing photo" className="w-full h-full object-cover" />
+                <button type="button" onClick={() => removeExistingPhoto(p.id)}
+                        className="absolute top-1.5 right-1.5 bg-white/90 rounded-full p-1.5 text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Remove photo">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+            {previews.map((src, i) => (
+              <div key={src} className="relative aspect-square rounded-btn overflow-hidden border-2 border-teal group">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={src} alt="New photo" className="w-full h-full object-cover" />
+                <button type="button" onClick={() => removeNewFile(i)}
+                        className="absolute top-1.5 right-1.5 bg-white/90 rounded-full p-1.5 text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Remove photo">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+            <button type="button" onClick={() => fileInput.current?.click()}
+                    className="aspect-square rounded-btn border-2 border-dashed border-slate-300 hover:border-teal hover:text-teal text-slate-400 flex flex-col items-center justify-center gap-1.5 text-xs font-semibold transition-colors">
+              <ImagePlus size={22} /> Add photos
+            </button>
+          </div>
         </div>
         <input ref={fileInput} type="file" accept="image/*" multiple className="hidden"
                onChange={e => { pickFiles(e.target.files); e.target.value = ""; }} />
-        <p className="mt-3 text-xs text-slate-500">New photos upload when you save. JPG or PNG works best.</p>
+        <p className="mt-3 text-xs text-slate-500">Drag photos from a folder and drop them here, or click Add photos. They upload when you save.</p>
+        <div className="mt-4 grid sm:grid-cols-2 gap-4">
+          <div>{label("Old MLS number (optional)")}
+            <input className="input" value={f.mls_number} onChange={e => set("mls_number", e.target.value)}
+                   placeholder="H6123456" /></div>
+          <div>{label("Link to more photos (optional)")}
+            <input className="input" type="url" value={f.photos_url} onChange={e => set("photos_url", e.target.value)}
+                   placeholder="https://drive.google.com/..." /></div>
+        </div>
       </section>
 
       {/* MARKETING COPY (future public site) */}

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase-server";
 import { formatPrice, STATUS_LABEL, TYPE_LABEL } from "@/lib/access";
-import { BedDouble, Bath, Ruler, MapPin, Pencil, Lock, Camera, CalendarDays } from "lucide-react";
+import { BedDouble, Bath, Ruler, MapPin, Pencil, Lock, Camera, CalendarDays, UserCheck, ExternalLink } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -21,10 +21,15 @@ const STATUS_STYLE: Record<string, string> = {
 export default async function ListingDetail({ params }: { params: { id: string } }) {
   const supabase = supabaseServer();
 
+  const { data: { user } } = await supabase.auth.getUser();
   const { data: l } = await supabase.from("listings")
-    .select("*, builders:builder_id(name, contact_name, contact_phone)")
+    .select("*, builders:builder_id(name, contact_name, contact_phone), listing_agent:listing_agent_id(full_name)")
     .eq("id", params.id).single();
   if (!l) notFound();
+
+  const { data: me } = await supabase.from("profiles")
+    .select("role").eq("id", user!.id).single();
+  const canEdit = me?.role === "admin" || l.created_by === user!.id;
 
   const { data: media } = await supabase.from("listing_media")
     .select("id, storage_path, visibility")
@@ -40,6 +45,7 @@ export default async function ListingDetail({ params }: { params: { id: string }
   }
 
   const builder = l.builders as { name: string; contact_name: string | null; contact_phone: string | null } | null;
+  const listingAgent = l.listing_agent as { full_name: string | null } | null;
 
   return (
     <>
@@ -119,9 +125,26 @@ export default async function ListingDetail({ params }: { params: { id: string }
 
           {/* SIDEBAR */}
           <aside className="space-y-4">
-            <Link href={"/agent/listings/" + l.id} className="btn-primary w-full">
-              <Pencil size={16} /> Edit Listing
-            </Link>
+            {canEdit && (
+              <Link href={"/agent/listings/" + l.id} className="btn-primary w-full">
+                <Pencil size={16} /> Edit Listing
+              </Link>
+            )}
+
+            {/* REPRESENTATION */}
+            <div className="card p-5">
+              <p className="text-xs font-bold text-teal flex items-center gap-1.5"><UserCheck size={14} /> REPRESENTATION</p>
+              {l.is_open_listing ? (
+                <p className="mt-2 font-semibold text-navy">Open listing. Go direct to the seller.</p>
+              ) : (
+                <>
+                  <p className="mt-2 font-semibold text-navy">{listingAgent?.full_name ?? "No listing agent set"}</p>
+                  {l.commission && (
+                    <p className="text-sm text-slate-600 mt-1">Commission: <span className="font-semibold text-navy">{l.commission}</span></p>
+                  )}
+                </>
+              )}
+            </div>
 
             <div className="card p-5 border-navy">
               <p className="flex items-center gap-1.5 text-xs font-bold text-white bg-navy-dark w-fit px-2.5 py-1 rounded-full">
@@ -149,7 +172,17 @@ export default async function ListingDetail({ params }: { params: { id: string }
                   <div><dt className="text-xs text-slate-500">Notes</dt>
                     <dd className="text-slate-600 whitespace-pre-line">{l.notes_internal}</dd></div>
                 )}
-                {!builder && !l.cobroke_terms && !l.source && !l.notes_internal && (
+                {l.mls_number && (
+                  <div><dt className="text-xs text-slate-500">Old MLS number</dt>
+                    <dd className="font-semibold text-navy">{l.mls_number}</dd></div>
+                )}
+                {l.photos_url && (
+                  <div><dt className="text-xs text-slate-500">More photos</dt>
+                    <dd><a href={l.photos_url} target="_blank" rel="noopener noreferrer"
+                          className="text-teal font-semibold inline-flex items-center gap-1">
+                      View more photos <ExternalLink size={13} /></a></dd></div>
+                )}
+                {!builder && !l.cobroke_terms && !l.source && !l.notes_internal && !l.mls_number && !l.photos_url && (
                   <p className="text-slate-500">No internal details recorded.</p>
                 )}
               </dl>
