@@ -1,6 +1,7 @@
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import ListingCard, { type ListingRow } from "@/components/ListingCard";
+import { type ListingRow } from "@/components/ListingCard";
+import BrowseGrid from "@/components/BrowseGrid";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase-server";
 import { townList, TYPE_LABEL, STATUS_LABEL } from "@/lib/access";
 
@@ -90,18 +91,9 @@ export default async function Browse({ searchParams }: { searchParams: Record<st
           <button className="btn-primary !py-2 text-sm">Search</button>
         </form>
 
-        {/* GRID */}
-        <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {(listings ?? []).map(l => (
-            <ListingCard key={l.id}
-              l={{ ...l, cover_url: covers[l.id], photo_count: counts[l.id] ?? 0 } as ListingRow} />
-          ))}
-        </div>
-        {(!listings || listings.length === 0) && (
-          <p className="mt-12 text-center text-slate-500">
-            Nothing matches those filters. Try widening the search, or add a listing.
-          </p>
-        )}
+        {/* GRID with multi-select for client links */}
+        <BrowseGrid listings={(listings ?? []).map(l =>
+          ({ ...l, cover_url: covers[l.id], photo_count: counts[l.id] ?? 0 } as ListingRow))} />
       </main>
       <Footer />
     </>
