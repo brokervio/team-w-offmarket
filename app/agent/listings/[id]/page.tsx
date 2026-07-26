@@ -59,7 +59,8 @@ export default async function EditListing({ params }: { params: { id: string } }
         <Link href="/agent/listings" className="text-sm text-teal font-semibold">&larr; Back to listings</Link>
         <h1 className="text-2xl mt-2">Edit Listing</h1>
         <ListingForm listingId={params.id} initial={listing} existingPhotos={photos}
-                     team={(team ?? []) as TeamMember[]} currentUserId={user!.id} />
+                     team={(team ?? []) as TeamMember[]} currentUserId={user!.id}
+                     isAdmin={me?.role === "admin"} />
       </main>
     </>
   );

@@ -19,14 +19,20 @@ export type ExistingPhoto = { id: string; url: string };
 export type TeamMember = { id: string; full_name: string | null };
 
 export default function ListingForm({
-  listingId, initial, existingPhotos = [], team, currentUserId
+  listingId, initial, existingPhotos = [], team, currentUserId, isAdmin = false
 }: {
   listingId?: string;
   initial?: Record<string, any>;
   existingPhotos?: ExistingPhoto[];
   team: TeamMember[];
   currentUserId: string;
+  isAdmin?: boolean;
 }) {
+  // Admins assign any agent as the listing agent. Agents can only
+  // assign themselves (or whoever an admin already assigned).
+  const repChoices = isAdmin
+    ? team
+    : team.filter(m => m.id === currentUserId || m.id === initial?.listing_agent_id);
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
   const addressInput = useRef<HTMLInputElement>(null);
@@ -46,6 +52,7 @@ export default function ListingForm({
     // representation
     listing_rep: initial?.is_open_listing ? "open" : (initial?.listing_agent_id ?? currentUserId),
     commission: initial?.commission ?? "",
+    seller_phone: initial?.seller_phone ?? "",
     // reference
     mls_number: initial?.mls_number ?? "",
     photos_url: initial?.photos_url ?? "",
@@ -152,6 +159,7 @@ export default function ListingForm({
       is_open_listing: open,
       listing_agent_id: open ? null : f.listing_rep,
       commission: open ? null : (f.commission || null),
+      seller_phone: open ? (f.seller_phone || null) : null,
       mls_number: f.mls_number || null,
       photos_url: f.photos_url || null,
       public_name: f.public_name.trim() || fallbackName(),
@@ -260,17 +268,21 @@ export default function ListingForm({
         <div className="mt-4 grid sm:grid-cols-2 gap-4">
           <div>{label("Who represents this listing?")}
             <select className="input" value={f.listing_rep} onChange={e => set("listing_rep", e.target.value)}>
-              {team.map(m => <option key={m.id} value={m.id}>{m.full_name || "Unnamed"}{m.id === currentUserId ? " (me)" : ""}</option>)}
-              <option value="open">Open listing: anyone goes direct to the seller</option>
+              {repChoices.map(m => <option key={m.id} value={m.id}>{m.full_name || "Unnamed"}{m.id === currentUserId ? " (me)" : ""}</option>)}
+              <option value="open">Open listing: no listing agent</option>
             </select></div>
-          {f.listing_rep !== "open" && (
+          {f.listing_rep === "open" ? (
+            <div>{label("Seller contact phone (optional)")}
+              <input className="input" type="tel" value={f.seller_phone} onChange={e => set("seller_phone", e.target.value)}
+                     placeholder="845-555-1234" /></div>
+          ) : (
             <div>{label("Commission offered")}
               <input className="input" value={f.commission} onChange={e => set("commission", e.target.value)}
                      placeholder="2% or $5,000 flat" /></div>
           )}
         </div>
         {f.listing_rep === "open" && (
-          <p className="mt-3 text-sm text-slate-500">Open listing: no listing agent and no commission is recorded. Buyers or their agents contact the seller directly.</p>
+          <p className="mt-3 text-sm text-slate-500">No listing agent. Agents contact the seller directly and negotiate their own commission.</p>
         )}
       </section>
 

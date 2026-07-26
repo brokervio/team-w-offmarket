@@ -17,8 +17,12 @@ export async function middleware(req: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
   const path = req.nextUrl.pathname;
+
+  // Client share links are public by design: one listing, no portal access.
+  if (path.startsWith("/share/")) return res;
+
+  const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
     if (path === "/login") return res;

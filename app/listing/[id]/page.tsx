@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase-server";
 import { formatPrice, STATUS_LABEL, TYPE_LABEL } from "@/lib/access";
 import { BedDouble, Bath, Ruler, MapPin, Pencil, Lock, Camera, CalendarDays, UserCheck, ExternalLink } from "lucide-react";
+import ShareActions from "@/components/ShareActions";
 
 export const dynamic = "force-dynamic";
 
@@ -131,11 +132,21 @@ export default async function ListingDetail({ params }: { params: { id: string }
               </Link>
             )}
 
+            <ShareActions listingId={l.id} addressLine={l.exact_address || l.public_name} town={l.town} />
+
             {/* REPRESENTATION */}
             <div className="card p-5">
               <p className="text-xs font-bold text-teal flex items-center gap-1.5"><UserCheck size={14} /> REPRESENTATION</p>
               {l.is_open_listing ? (
-                <p className="mt-2 font-semibold text-navy">Open listing. Go direct to the seller.</p>
+                <>
+                  <p className="mt-2 font-semibold text-navy">Open listing. No listing agent.</p>
+                  <p className="text-sm text-slate-600 mt-1">Contact the seller directly and negotiate your own commission.</p>
+                  {l.seller_phone && (
+                    <a href={"tel:" + l.seller_phone} className="mt-2 inline-block text-teal font-semibold">
+                      Seller: {l.seller_phone}
+                    </a>
+                  )}
+                </>
               ) : (
                 <>
                   <p className="mt-2 font-semibold text-navy">{listingAgent?.full_name ?? "No listing agent set"}</p>

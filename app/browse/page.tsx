@@ -19,6 +19,10 @@ export default async function Browse({ searchParams }: { searchParams: Record<st
   if (searchParams.type) q = q.eq("property_type", searchParams.type);
   if (searchParams.beds) q = q.gte("beds", Number(searchParams.beds));
   if (searchParams.max) q = q.lte("price", Number(searchParams.max));
+  if (searchParams.q) {
+    const s = searchParams.q.replace(/[,()%]/g, " ").trim();
+    if (s) q = q.or(`exact_address.ilike.%${s}%,public_name.ilike.%${s}%,mls_number.ilike.%${s}%,town.ilike.%${s}%,neighborhood_label.ilike.%${s}%`);
+  }
 
   const { data: listings } = await q;
 
@@ -54,7 +58,10 @@ export default async function Browse({ searchParams }: { searchParams: Record<st
         </div>
 
         {/* FILTER BAR */}
-        <form method="get" className="mt-4 grid grid-cols-2 md:grid-cols-6 gap-2 items-end bg-white py-3 z-30 border-b border-slate-100">
+        <form method="get" className="mt-4 grid grid-cols-2 md:grid-cols-8 gap-2 items-end bg-white py-3 z-30 border-b border-slate-100">
+          <div className="col-span-2"><label className="label !mb-1">Search</label>
+            <input name="q" defaultValue={searchParams.q ?? ""} className={sel}
+                   placeholder="Address, MLS, area..." /></div>
           <div><label className="label !mb-1">Town</label>
             <select name="town" defaultValue={searchParams.town ?? ""} className={sel}>
               <option value="">All towns</option>
