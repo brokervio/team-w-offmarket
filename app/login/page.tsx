@@ -28,7 +28,8 @@ function LoginForm() {
         <span className="text-teal font-extrabold text-2xl">team W</span>
         <span className="text-navy font-semibold">Off-Market</span>
       </Link>
-      <h1 className="text-2xl text-center mb-6">Welcome back</h1>
+      <h1 className="text-2xl text-center mb-1">Team sign in</h1>
+      <p className="text-center text-sm text-slate-500 mb-6">Internal inventory portal for Team W agents.</p>
       <div className="space-y-4">
         <div><label className="label">Email</label>
           <input className="input" type="email" value={email} onChange={e => setEmail(e.target.value)} /></div>
@@ -37,7 +38,7 @@ function LoginForm() {
                  onKeyDown={e => e.key === "Enter" && signIn()} /></div>
         {err && <p className="text-sm text-red-600 font-semibold">{err}</p>}
         <button onClick={signIn} disabled={busy} className="btn-primary w-full">{busy ? "Signing in..." : "Sign In"}</button>
-        <p className="text-center text-sm">New here? <Link href="/signup" className="text-teal font-semibold">Create a free account</Link></p>
+        <p className="text-center text-xs text-slate-400">Need an account? Ask your team admin.</p>
       </div>
     </div>
   );

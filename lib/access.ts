@@ -23,9 +23,13 @@ export function formatPrice(l: { price: number | null; price_max: number | null;
 }
 
 export const STATUS_LABEL: Record<string,string> = {
+  draft: "Draft",
+  pending: "Pending",
   coming_soon: "Coming Soon",
   available: "Available",
-  in_contract: "In Contract"
+  in_contract: "In Contract",
+  sold: "Sold",
+  archived: "Archived"
 };
 
 export const TYPE_LABEL: Record<string,string> = {

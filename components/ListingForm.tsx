@@ -1,0 +1,286 @@
+"use client";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabaseBrowser } from "@/lib/supabase-client";
+import { Lock, Upload, Trash2, ImagePlus } from "lucide-react";
+
+const TOWNS = ["Monsey","Spring Valley","Airmont","Suffern","Nanuet","New Hempstead","Pomona","Wesley Hills","New Square","Monroe","Kiryas Joel","Monticello","Chester","Other"];
+
+const STATUS_OPTIONS = [
+  { value: "draft", label: "Draft (only visible in Manage)" },
+  { value: "coming_soon", label: "Coming Soon" },
+  { value: "available", label: "Available" },
+  { value: "in_contract", label: "In Contract" },
+  { value: "sold", label: "Sold" },
+  { value: "archived", label: "Archived (hidden)" }
+];
+
+export type ExistingPhoto = { id: string; url: string };
+
+export default function ListingForm({
+  listingId, initial, existingPhotos = []
+}: {
+  listingId?: string;
+  initial?: Record<string, any>;
+  existingPhotos?: ExistingPhoto[];
+}) {
+  const router = useRouter();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [f, setF] = useState<Record<string, any>>({
+    exact_address: initial?.exact_address ?? "",
+    town: initial?.town ?? "Monsey",
+    property_type: initial?.property_type ?? "new_construction",
+    status: initial?.status ?? "available",
+    delivery_date: initial?.delivery_date ?? "",
+    price_display: initial?.price_display ?? "exact",
+    price: initial?.price ?? "",
+    price_max: initial?.price_max ?? "",
+    beds: initial?.beds ?? "",
+    baths: initial?.baths ?? "",
+    sqft: initial?.sqft ?? "",
+    lot_desc: initial?.lot_desc ?? "",
+    public_name: initial?.public_name ?? "",
+    neighborhood_label: initial?.neighborhood_label ?? "",
+    description_public: initial?.description_public ?? "",
+    cobroke_terms: initial?.cobroke_terms ?? "",
+    source: initial?.source ?? "",
+    notes_internal: initial?.notes_internal ?? ""
+  });
+  const [files, setFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<ExistingPhoto[]>(existingPhotos);
+  const [err, setErr] = useState("");
+  const [progress, setProgress] = useState("");
+  const [busy, setBusy] = useState(false);
+  const set = (k: string, v: any) => setF(prev => ({ ...prev, [k]: v }));
+
+  function suggestPublicName() {
+    if (f.public_name) return;
+    const street = f.exact_address.replace(/^\s*\d+\s*/, "").split(",")[0].trim();
+    const type = f.property_type === "new_construction" ? "New Construction" :
+                 f.property_type === "multi_family" ? "Multi-Family" :
+                 f.property_type === "land" ? "Land" : "Off-Market Home";
+    if (street) set("public_name", `${type}, ${street} Area`);
+  }
+
+  function pickFiles(picked: FileList | null) {
+    if (!picked) return;
+    const arr = Array.from(picked).filter(file => file.type.startsWith("image/"));
+    setFiles(prev => [...prev, ...arr]);
+    setPreviews(prev => [...prev, ...arr.map(file => URL.createObjectURL(file))]);
+  }
+
+  function removeNewFile(i: number) {
+    setFiles(prev => prev.filter((_, idx) => idx !== i));
+    setPreviews(prev => prev.filter((_, idx) => idx !== i));
+  }
+
+  async function removeExistingPhoto(id: string) {
+    const r = await fetch("/api/upload", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ media_id: id })
+    });
+    if (r.ok) setPhotos(prev => prev.filter(p => p.id !== id));
+  }
+
+  async function save() {
+    setErr("");
+    if (!f.exact_address.trim()) { setErr("Enter the property address."); return; }
+    setBusy(true);
+
+    const fallbackName = () => {
+      const type = f.property_type === "new_construction" ? "New Construction" :
+                   f.property_type === "multi_family" ? "Multi-Family" :
+                   f.property_type === "land" ? "Land" : "Off-Market Home";
+      return `${type} in ${f.town}`;
+    };
+
+    const payload = {
+      exact_address: f.exact_address.trim(),
+      town: f.town,
+      property_type: f.property_type,
+      status: f.status,
+      delivery_date: f.delivery_date || null,
+      price_display: f.price_display,
+      price: f.price ? Number(f.price) : null,
+      price_max: f.price_max ? Number(f.price_max) : null,
+      beds: f.beds ? Number(f.beds) : null,
+      baths: f.baths ? Number(f.baths) : null,
+      sqft: f.sqft ? Number(f.sqft) : null,
+      lot_desc: f.lot_desc || null,
+      public_name: f.public_name.trim() || fallbackName(),
+      neighborhood_label: f.neighborhood_label || null,
+      description_public: f.description_public || null,
+      cobroke_terms: f.cobroke_terms || null,
+      source: f.source || null,
+      notes_internal: f.notes_internal || null
+    };
+
+    const supabase = supabaseBrowser();
+    let id = listingId;
+    if (id) {
+      const { error } = await supabase.from("listings").update(payload).eq("id", id);
+      if (error) { setBusy(false); setErr(friendly(error.message)); return; }
+    } else {
+      const { data, error } = await supabase.from("listings").insert(payload).select("id").single();
+      if (error || !data) { setBusy(false); setErr(friendly(error?.message ?? "Could not save.")); return; }
+      id = data.id;
+    }
+
+    // upload any newly added photos through the server (service role handles storage)
+    for (let i = 0; i < files.length; i++) {
+      setProgress(`Uploading photo ${i + 1} of ${files.length}...`);
+      const fd = new FormData();
+      fd.append("file", files[i]);
+      fd.append("listing_id", id!);
+      fd.append("sort_order", String(photos.length + i));
+      const r = await fetch("/api/upload", { method: "POST", body: fd });
+      if (!r.ok) {
+        setBusy(false); setProgress("");
+        setErr(`Photo ${i + 1} failed to upload. The listing itself was saved. Open it again to retry the photos.`);
+        return;
+      }
+    }
+
+    setProgress("");
+    setBusy(false);
+    router.push("/agent/listings");
+    router.refresh();
+  }
+
+  function friendly(msg: string) {
+    if (msg.toLowerCase().includes("street address")) {
+      return "Blocked for safety: the marketing name or description appears to contain a street address. Addresses stay internal. Remove it from those fields and save again.";
+    }
+    return msg;
+  }
+
+  const label = (t: string) => <label className="label">{t}</label>;
+
+  return (
+    <div className="pb-12">
+      {/* PROPERTY BASICS */}
+      <section className="mt-5 card p-5">
+        <p className="text-xs font-bold text-teal">PROPERTY</p>
+        <div className="mt-4 space-y-4">
+          <div>{label("Address")}
+            <input className="input" value={f.exact_address} onChange={e => set("exact_address", e.target.value)}
+                   onBlur={suggestPublicName} placeholder="45 Summit Avenue, Monticello, NY" /></div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div>{label("Town")}
+              <select className="input" value={f.town} onChange={e => set("town", e.target.value)}>
+                {TOWNS.map(t => <option key={t}>{t}</option>)}
+              </select></div>
+            <div>{label("Type")}
+              <select className="input" value={f.property_type} onChange={e => set("property_type", e.target.value)}>
+                <option value="new_construction">New Construction</option>
+                <option value="off_market_resale">Off-Market Resale</option>
+                <option value="multi_family">Multi-Family</option>
+                <option value="land">Land</option>
+              </select></div>
+            <div>{label("Status")}
+              <select className="input" value={f.status} onChange={e => set("status", e.target.value)}>
+                {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select></div>
+            <div>{label("Delivery date")}
+              <input className="input" type="date" value={f.delivery_date} onChange={e => set("delivery_date", e.target.value)} /></div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div>{label("Beds")}<input className="input" type="number" value={f.beds} onChange={e => set("beds", e.target.value)} /></div>
+            <div>{label("Baths")}<input className="input" type="number" step="0.5" value={f.baths} onChange={e => set("baths", e.target.value)} /></div>
+            <div>{label("Sqft")}<input className="input" type="number" value={f.sqft} onChange={e => set("sqft", e.target.value)} /></div>
+            <div>{label("Lot")}<input className="input" value={f.lot_desc} onChange={e => set("lot_desc", e.target.value)} placeholder="0.25 acre" /></div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div>{label("Price display")}
+              <select className="input" value={f.price_display} onChange={e => set("price_display", e.target.value)}>
+                <option value="exact">Exact price</option>
+                <option value="range">Range</option>
+                <option value="call">Price on request</option>
+              </select></div>
+            <div>{label("Price")}<input className="input" type="number" value={f.price} onChange={e => set("price", e.target.value)} /></div>
+            <div>{label("Price max")}<input className="input" type="number" value={f.price_max} onChange={e => set("price_max", e.target.value)} /></div>
+          </div>
+        </div>
+      </section>
+
+      {/* PHOTOS */}
+      <section className="mt-4 card p-5">
+        <p className="text-xs font-bold text-teal">PHOTOS</p>
+        <div className="mt-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+          {photos.map(p => (
+            <div key={p.id} className="relative aspect-square rounded-btn overflow-hidden border border-slate-200 group">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={p.url} alt="Listing photo" className="w-full h-full object-cover" />
+              <button type="button" onClick={() => removeExistingPhoto(p.id)}
+                      className="absolute top-1.5 right-1.5 bg-white/90 rounded-full p-1.5 text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Remove photo">
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+          {previews.map((src, i) => (
+            <div key={src} className="relative aspect-square rounded-btn overflow-hidden border-2 border-teal group">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={src} alt="New photo" className="w-full h-full object-cover" />
+              <button type="button" onClick={() => removeNewFile(i)}
+                      className="absolute top-1.5 right-1.5 bg-white/90 rounded-full p-1.5 text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Remove photo">
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+          <button type="button" onClick={() => fileInput.current?.click()}
+                  className="aspect-square rounded-btn border-2 border-dashed border-slate-300 hover:border-teal hover:text-teal text-slate-400 flex flex-col items-center justify-center gap-1.5 text-xs font-semibold transition-colors">
+            <ImagePlus size={22} /> Add photos
+          </button>
+        </div>
+        <input ref={fileInput} type="file" accept="image/*" multiple className="hidden"
+               onChange={e => { pickFiles(e.target.files); e.target.value = ""; }} />
+        <p className="mt-3 text-xs text-slate-500">New photos upload when you save. JPG or PNG works best.</p>
+      </section>
+
+      {/* MARKETING COPY (future public site) */}
+      <section className="mt-4 card p-5">
+        <p className="text-xs font-bold text-teal">MARKETING COPY</p>
+        <p className="text-xs text-slate-500 mt-1">Used if the site opens to outside buyers later. Keep street addresses out of these fields.</p>
+        <div className="mt-4 space-y-4">
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>{label("Display name (no house numbers)")}
+              <input className="input" value={f.public_name} onChange={e => set("public_name", e.target.value)} /></div>
+            <div>{label("Area label")}
+              <input className="input" value={f.neighborhood_label} onChange={e => set("neighborhood_label", e.target.value)} placeholder="Summit Ave corridor" /></div>
+          </div>
+          <div>{label("Description")}
+            <textarea className="input" rows={4} value={f.description_public} onChange={e => set("description_public", e.target.value)} /></div>
+        </div>
+      </section>
+
+      {/* INTERNAL */}
+      <section className="mt-4 card p-5 border-navy">
+        <p className="flex items-center gap-1.5 text-xs font-bold text-white bg-navy-dark w-fit px-2.5 py-1 rounded-full">
+          <Lock size={12} /> INTERNAL ONLY
+        </p>
+        <div className="mt-4 space-y-4">
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>{label("Co-broke / commission terms")}
+              <input className="input" value={f.cobroke_terms} onChange={e => set("cobroke_terms", e.target.value)} /></div>
+            <div>{label("Source")}
+              <input className="input" value={f.source} onChange={e => set("source", e.target.value)} placeholder="Builder direct, referral..." /></div>
+          </div>
+          <div>{label("Internal notes")}
+            <textarea className="input" rows={2} value={f.notes_internal} onChange={e => set("notes_internal", e.target.value)} /></div>
+        </div>
+      </section>
+
+      {err && <p className="mt-4 text-sm text-red-600 font-semibold">{err}</p>}
+      {progress && <p className="mt-4 text-sm text-teal font-semibold">{progress}</p>}
+      <div className="mt-5 flex gap-3">
+        <button onClick={save} disabled={busy} className="btn-primary flex-1">
+          <Upload size={16} /> {busy ? "Saving..." : listingId ? "Save Changes" : "Save Listing"}
+        </button>
+      </div>
+    </div>
+  );
+}

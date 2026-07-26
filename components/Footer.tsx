@@ -13,7 +13,7 @@ export default function Footer() {
           <a href="/terms" className="underline">Terms of Service</a>
         </div>
         <p className="text-slate-400 text-xs pt-2">
-          Property locations shown are approximate. Exact addresses are provided by a licensed agent.
+          Internal inventory tool. Listing details are confidential to Team W Realty.
         </p>
       </div>
     </footer>

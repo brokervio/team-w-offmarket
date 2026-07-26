@@ -1,108 +1,171 @@
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { supabaseServer } from "@/lib/supabase-server";
-import { formatPrice, STATUS_LABEL, TYPE_LABEL } from "@/lib/access";
-import { BedDouble, Bath, Ruler, MapPin, CalendarDays } from "lucide-react";
-import DetailActions from "./DetailActions";
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { supabaseServer, supabaseAdmin } from "@/lib/supabase-server";
+import { formatPrice, STATUS_LABEL, TYPE_LABEL } from "@/lib/access";
+import { BedDouble, Bath, Ruler, MapPin, Pencil, Lock, Camera, CalendarDays } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
+const STATUS_STYLE: Record<string, string> = {
+  draft: "bg-amber-100 text-amber-800",
+  pending: "bg-amber-100 text-amber-800",
+  coming_soon: "bg-teal-light text-teal border border-teal",
+  available: "bg-teal text-white",
+  in_contract: "bg-navy text-white",
+  sold: "bg-slate-700 text-white",
+  archived: "bg-slate-200 text-slate-600"
+};
+
 export default async function ListingDetail({ params }: { params: { id: string } }) {
   const supabase = supabaseServer();
-  const { data: l } = await supabase.from("public_listings").select("*").eq("id", params.id).single();
+
+  const { data: l } = await supabase.from("listings")
+    .select("*, builders:builder_id(name, contact_name, contact_phone)")
+    .eq("id", params.id).single();
   if (!l) notFound();
 
-  // log the view (RLS: prospect inserts own row)
-  const { data: { user } } = await supabase.auth.getUser();
-  if (user) await supabase.from("view_events").insert({ user_id: user.id, listing_id: l.id });
-
-  // public media only
   const { data: media } = await supabase.from("listing_media")
-    .select("id, storage_path, media_type")
-    .eq("listing_id", l.id).eq("visibility", "public").order("sort_order");
+    .select("id, storage_path, visibility")
+    .eq("listing_id", params.id).eq("media_type", "photo")
+    .order("sort_order");
+
+  const admin = supabaseAdmin();
   const photos: string[] = [];
   for (const m of media ?? []) {
-    const { data: s } = await supabase.storage.from("listing-media-public").createSignedUrl(m.storage_path, 3600);
-    if (s) photos.push(s.signedUrl);
+    const bucket = m.visibility === "internal" ? "listing-media-internal" : "listing-media-public";
+    const { data: signed } = await admin.storage.from(bucket).createSignedUrl(m.storage_path, 3600);
+    if (signed) photos.push(signed.signedUrl);
   }
 
-  const badge = l.status === "coming_soon" ? "badge-teal" : l.status === "available" ? "badge-navy" : "badge-gray";
+  const builder = l.builders as { name: string; contact_name: string | null; contact_phone: string | null } | null;
 
   return (
     <>
       <Header />
-      <main className="max-w-4xl mx-auto px-4 py-6 pb-32">
+      <main className="max-w-6xl mx-auto px-4 py-6">
+        <Link href="/browse" className="text-sm text-teal font-semibold">&larr; Back to inventory</Link>
+
         {/* GALLERY */}
-        <div className="rounded-card overflow-hidden bg-navy-light aspect-[16/9] relative">
-          {photos[0] ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={photos[0]} alt={l.public_name} className="w-full h-full object-cover" />
+        <div className="mt-4">
+          {photos.length === 0 ? (
+            <div className="aspect-[3/1] card flex flex-col items-center justify-center gap-2 text-slate-400">
+              <Camera size={36} />
+              <p className="text-sm font-semibold">No photos yet. Add some from Edit Listing.</p>
+            </div>
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-navy/30 font-bold text-xl">TEAM W | OFF-MARKET</div>
+            <div className="grid grid-cols-4 grid-rows-2 gap-2 rounded-card overflow-hidden max-h-[420px]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={photos[0]} alt="Main photo"
+                   className={"w-full h-full object-cover " + (photos.length > 1 ? "col-span-2 row-span-2" : "col-span-4 row-span-2")} />
+              {photos.slice(1, 5).map((p, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={i} src={p} alt={"Photo " + (i + 2)} className="w-full h-full object-cover" />
+              ))}
+            </div>
           )}
-          <span className={"absolute top-4 left-4 " + badge}>{STATUS_LABEL[l.status]}</span>
-        </div>
-        {photos.length > 1 && (
-          <div className="mt-2 grid grid-cols-4 gap-2">
-            {photos.slice(1,5).map((p,i) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img key={i} src={p} alt="" className="rounded-lg aspect-[4/3] object-cover" />
-            ))}
-          </div>
-        )}
-
-        {/* HEADLINE */}
-        <div className="mt-6">
-          <p className="text-xs font-semibold text-teal uppercase tracking-wide">{TYPE_LABEL[l.property_type]}</p>
-          <h1 className="text-2xl md:text-3xl mt-1">{l.public_name}</h1>
-          <p className="flex items-center gap-1.5 text-slate-500 mt-1">
-            <MapPin size={16} /> {l.town}{l.neighborhood_label ? ", " + l.neighborhood_label : ""} (exact address via your agent)
-          </p>
-          <p className="text-2xl font-extrabold text-navy mt-3">{formatPrice(l)}</p>
         </div>
 
-        {/* SPECS */}
-        <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {l.beds ? <Spec icon={<BedDouble />} label="Bedrooms" v={String(l.beds)} /> : null}
-          {l.baths ? <Spec icon={<Bath />} label="Bathrooms" v={String(l.baths)} /> : null}
-          {l.sqft ? <Spec icon={<Ruler />} label="Square feet" v={l.sqft.toLocaleString()} /> : null}
-          {l.delivery_date ? <Spec icon={<CalendarDays />} label="Delivery" v={new Date(l.delivery_date).toLocaleDateString("en-US",{month:"short",year:"numeric"})} /> : null}
+        <div className="mt-6 grid lg:grid-cols-3 gap-6">
+          {/* MAIN COLUMN */}
+          <div className="lg:col-span-2">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-3xl font-extrabold text-navy">{formatPrice(l)}</p>
+                <p className="mt-1 text-lg font-semibold text-navy flex items-center gap-1.5">
+                  <MapPin size={18} className="text-teal" /> {l.exact_address || l.public_name}
+                </p>
+                <p className="text-sm text-slate-500 mt-0.5">{l.town}{l.neighborhood_label ? ", " + l.neighborhood_label : ""}</p>
+              </div>
+              <span className={"badge shrink-0 " + (STATUS_STYLE[l.status] ?? "badge-gray")}>
+                {STATUS_LABEL[l.status] ?? l.status}
+              </span>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-5 text-navy font-semibold border-y border-slate-100 py-4">
+              {l.beds ? <span className="flex items-center gap-1.5"><BedDouble size={18} className="text-teal"/>{l.beds} beds</span> : null}
+              {l.baths ? <span className="flex items-center gap-1.5"><Bath size={18} className="text-teal"/>{l.baths} baths</span> : null}
+              {l.sqft ? <span className="flex items-center gap-1.5"><Ruler size={18} className="text-teal"/>{l.sqft.toLocaleString()} sqft</span> : null}
+              <span className="text-sm text-slate-500 font-normal">{TYPE_LABEL[l.property_type] ?? l.property_type}</span>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+              {l.delivery_date && (
+                <div className="card p-3">
+                  <p className="text-xs text-slate-500 flex items-center gap-1"><CalendarDays size={13}/> Delivery</p>
+                  <p className="font-semibold text-navy mt-0.5">{new Date(l.delivery_date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</p>
+                </div>
+              )}
+              {l.lot_desc && (
+                <div className="card p-3">
+                  <p className="text-xs text-slate-500">Lot</p>
+                  <p className="font-semibold text-navy mt-0.5">{l.lot_desc}</p>
+                </div>
+              )}
+              <div className="card p-3">
+                <p className="text-xs text-slate-500">Added</p>
+                <p className="font-semibold text-navy mt-0.5">{new Date(l.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
+              </div>
+            </div>
+
+            {l.description_public && (
+              <section className="mt-6">
+                <h2 className="text-lg">About this property</h2>
+                <p className="mt-2 text-slate-600 whitespace-pre-line leading-relaxed">{l.description_public}</p>
+              </section>
+            )}
+          </div>
+
+          {/* SIDEBAR */}
+          <aside className="space-y-4">
+            <Link href={"/agent/listings/" + l.id} className="btn-primary w-full">
+              <Pencil size={16} /> Edit Listing
+            </Link>
+
+            <div className="card p-5 border-navy">
+              <p className="flex items-center gap-1.5 text-xs font-bold text-white bg-navy-dark w-fit px-2.5 py-1 rounded-full">
+                <Lock size={12} /> INTERNAL
+              </p>
+              <dl className="mt-3 space-y-2.5 text-sm">
+                {builder && (
+                  <div>
+                    <dt className="text-xs text-slate-500">Builder</dt>
+                    <dd className="font-semibold text-navy">{builder.name}
+                      {builder.contact_name ? <span className="font-normal text-slate-600"> ({builder.contact_name})</span> : null}
+                    </dd>
+                    {builder.contact_phone && <dd><a href={"tel:" + builder.contact_phone} className="text-teal font-semibold">{builder.contact_phone}</a></dd>}
+                  </div>
+                )}
+                {l.cobroke_terms && (
+                  <div><dt className="text-xs text-slate-500">Co-broke terms</dt>
+                    <dd className="font-semibold text-navy">{l.cobroke_terms}</dd></div>
+                )}
+                {l.source && (
+                  <div><dt className="text-xs text-slate-500">Source</dt>
+                    <dd className="font-semibold text-navy">{l.source}</dd></div>
+                )}
+                {l.notes_internal && (
+                  <div><dt className="text-xs text-slate-500">Notes</dt>
+                    <dd className="text-slate-600 whitespace-pre-line">{l.notes_internal}</dd></div>
+                )}
+                {!builder && !l.cobroke_terms && !l.source && !l.notes_internal && (
+                  <p className="text-slate-500">No internal details recorded.</p>
+                )}
+              </dl>
+            </div>
+
+            <div className="card p-5">
+              <p className="text-xs font-bold text-teal">FUTURE PUBLIC PREVIEW</p>
+              <p className="text-xs text-slate-500 mt-1">
+                If the site opens to outside buyers later, they would see this name instead of the address:
+              </p>
+              <p className="mt-2 font-semibold text-navy">{l.public_name}</p>
+            </div>
+          </aside>
         </div>
-
-        {/* DESCRIPTION */}
-        {l.description_public && (
-          <div className="mt-6 card p-5">
-            <h2 className="text-lg">About this property</h2>
-            <p className="mt-2 text-slate-700 leading-relaxed whitespace-pre-line">{l.description_public}</p>
-          </div>
-        )}
-
-        {l.lot_desc && (
-          <div className="mt-4 card p-5">
-            <h2 className="text-lg">Lot</h2>
-            <p className="mt-2 text-slate-700">{l.lot_desc}</p>
-          </div>
-        )}
-
-        <p className="mt-6 text-xs text-slate-400">
-          Location shown is approximate to protect the seller. The exact address, plans, and full terms
-          are provided by a licensed Team W agent.
-        </p>
-
-        {/* STICKY CTAs */}
-        <DetailActions listingId={l.id} isNewConstruction={l.property_type === "new_construction"} />
       </main>
       <Footer />
     </>
-  );
-}
-
-function Spec({ icon, label, v }: { icon: React.ReactNode; label: string; v: string }) {
-  return (
-    <div className="card p-4 flex items-center gap-3">
-      <span className="text-teal">{icon}</span>
-      <div><p className="text-xs text-slate-500">{label}</p><p className="font-bold text-navy">{v}</p></div>
-    </div>
   );
 }

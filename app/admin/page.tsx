@@ -1,94 +1,66 @@
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import Link from "next/link";
-import { supabaseServer } from "@/lib/supabase-server";
-import { daysRemaining } from "@/lib/access";
-import ApproveButtons from "@/components/ApproveButtons";
-import ExtendButton from "@/components/ExtendButton";
+import { supabaseServer, supabaseAdmin } from "@/lib/supabase-server";
+import CreateTeamForm from "@/components/CreateTeamForm";
+import { ShieldCheck } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPanel() {
   const supabase = supabaseServer();
-  const nowIso = new Date().toISOString();
+  const admin = supabaseAdmin();
 
-  const [{ data: pending }, { data: prospects }, { count: total }, { count: active }, { data: extCounts }] = await Promise.all([
-    supabase.from("listings").select("id, public_name, town, exact_address, created_at").eq("status","pending").order("created_at"),
-    supabase.from("profiles").select("id, full_name, phone, access_expires_at, created_at")
-      .eq("role","prospect").order("created_at", { ascending: false }).limit(50),
-    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role","prospect"),
-    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role","prospect").gte("access_expires_at", nowIso),
-    supabase.from("access_extensions").select("agent_id, agents:agent_id(full_name)")
+  const [{ data: staff }, { count: liveCount }, { count: draftCount }, usersRes] = await Promise.all([
+    supabase.from("profiles").select("id, full_name, role, created_at")
+      .in("role", ["agent", "admin"]).order("created_at"),
+    supabase.from("listings").select("id", { count: "exact", head: true })
+      .in("status", ["coming_soon", "available", "in_contract"]),
+    supabase.from("listings").select("id", { count: "exact", head: true })
+      .eq("status", "draft"),
+    admin.auth.admin.listUsers()
   ]);
 
-  const leaderboard: Record<string, number> = {};
-  for (const e of (extCounts ?? []) as any[]) {
-    const n = e.agents?.full_name ?? "Agent";
-    leaderboard[n] = (leaderboard[n] ?? 0) + 1;
-  }
+  const emailById: Record<string, string> = {};
+  for (const u of usersRes.data?.users ?? []) emailById[u.id] = u.email ?? "";
 
   return (
     <>
       <Header />
-      <main className="max-w-6xl mx-auto px-4 py-6 min-h-[70vh]">
+      <main className="max-w-4xl mx-auto px-4 py-6 min-h-[70vh]">
         <h1 className="text-2xl md:text-3xl">Admin</h1>
 
         <div className="mt-5 grid grid-cols-3 gap-3">
-          <Kpi n={String(total ?? 0)} l="Total Prospects" />
-          <Kpi n={String(active ?? 0)} l="Active Access" />
-          <Kpi n={String(pending?.length ?? 0)} l="Pending Approval" />
+          <Kpi n={String(liveCount ?? 0)} l="Live Listings" />
+          <Kpi n={String(draftCount ?? 0)} l="Drafts" />
+          <Kpi n={String(staff?.length ?? 0)} l="Team Members" />
         </div>
 
-        {/* APPROVAL QUEUE */}
+        {/* TEAM */}
         <section className="mt-8 card p-5">
-          <h2 className="text-lg">Approval Queue</h2>
+          <h2 className="text-lg">Team</h2>
           <div className="mt-3 divide-y divide-slate-100">
-            {(pending ?? []).map(l => (
-              <div key={l.id} className="py-3 flex items-center justify-between gap-3">
+            {(staff ?? []).map(p => (
+              <div key={p.id} className="py-3 flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="font-semibold text-navy truncate">{l.public_name}</p>
-                  <p className="text-sm text-slate-500">{l.town} | <span className="badge-internal !text-[10px]">Internal</span> {l.exact_address}</p>
+                  <p className="font-semibold text-navy truncate flex items-center gap-1.5">
+                    {p.full_name || "Unnamed"}
+                    {p.role === "admin" && <ShieldCheck size={15} className="text-teal" />}
+                  </p>
+                  <p className="text-sm text-slate-500 truncate">{emailById[p.id] || "no email on file"}</p>
                 </div>
-                <ApproveButtons listingId={l.id} />
+                <span className={p.role === "admin" ? "badge-teal" : "badge-navy"}>{p.role}</span>
               </div>
             ))}
-            {(!pending || !pending.length) && <p className="py-6 text-sm text-slate-500 text-center">Queue clear.</p>}
           </div>
         </section>
 
-        {/* EXTENSION LEADERBOARD */}
+        {/* ADD TEAM MEMBER */}
         <section className="mt-6 card p-5">
-          <h2 className="text-lg">Extensions by Agent</h2>
-          <div className="mt-3 space-y-2">
-            {Object.entries(leaderboard).sort((a,b) => b[1]-a[1]).map(([name, n]) => (
-              <div key={name} className="flex items-center justify-between">
-                <p className="font-semibold text-navy">{name}</p>
-                <span className="badge-teal">{n}</span>
-              </div>
-            ))}
-            {!Object.keys(leaderboard).length && <p className="text-sm text-slate-500">No extensions logged yet.</p>}
-          </div>
-        </section>
-
-        {/* PROSPECTS */}
-        <section className="mt-6 card p-5">
-          <h2 className="text-lg">Recent Prospects</h2>
-          <div className="mt-3 divide-y divide-slate-100">
-            {(prospects ?? []).map(p => {
-              const d = daysRemaining(p.access_expires_at);
-              return (
-                <div key={p.id} className="py-3 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <Link href={"/agent/prospects/" + p.id} className="font-semibold text-navy hover:text-teal truncate block">
-                      {p.full_name || "Unnamed"}
-                    </Link>
-                    <p className="text-sm text-slate-500">{p.phone} | {d === null ? "never expires" : d === 0 ? "EXPIRED" : d + " days left"}</p>
-                  </div>
-                  <ExtendButton userId={p.id} />
-                </div>
-              );
-            })}
-          </div>
+          <h2 className="text-lg">Add a Team Member</h2>
+          <p className="text-sm text-slate-500 mt-1">
+            They sign in at this site with the email and password you set here. There is no public signup.
+          </p>
+          <CreateTeamForm />
         </section>
       </main>
       <Footer />

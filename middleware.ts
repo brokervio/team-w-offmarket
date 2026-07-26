@@ -1,9 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
-const PROSPECT_GATED = ["/browse", "/listing", "/favorites"];
-const STAFF_ONLY = ["/agent", "/admin"];
-
+// INTERNAL MODE: the entire site requires a signed-in team account.
+// Only /login is public. Admin area additionally requires the admin role.
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
   const supabase = createServerClient(
@@ -20,37 +19,29 @@ export async function middleware(req: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
   const path = req.nextUrl.pathname;
-  const gated = PROSPECT_GATED.some(p => path.startsWith(p));
-  const staff = STAFF_ONLY.some(p => path.startsWith(p));
-
-  if (!gated && !staff) return res;
 
   if (!user) {
-    return NextResponse.redirect(new URL("/login?next=" + path, req.url));
+    if (path === "/login") return res;
+    return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, access_expires_at")
-    .eq("id", user.id)
-    .single();
+  if (path === "/login") {
+    return NextResponse.redirect(new URL("/browse", req.url));
+  }
 
-  if (staff) {
-    if (!profile || !["agent", "admin"].includes(profile.role)) {
+  if (path.startsWith("/admin")) {
+    const { data: profile } = await supabase
+      .from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "admin") {
       return NextResponse.redirect(new URL("/browse", req.url));
     }
-    return res;
   }
 
-  // prospect gate: staff pass through, prospects need active access
-  if (profile && ["agent", "admin"].includes(profile.role)) return res;
-  const exp = profile?.access_expires_at;
-  if (exp && new Date(exp).getTime() <= Date.now()) {
-    return NextResponse.redirect(new URL("/expired", req.url));
-  }
   return res;
 }
 
 export const config = {
-  matcher: ["/browse/:path*", "/listing/:path*", "/favorites/:path*", "/agent/:path*", "/admin/:path*"]
+  // Everything except Next.js internals, static files, and API routes
+  // (API routes enforce their own auth).
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/).*)"]
 };

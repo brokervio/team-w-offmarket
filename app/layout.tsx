@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Team W Off-Market | The Inventory You Won't Find on Zillow",
-  description: "Off-market homes and new construction across Rockland and Orange County. Free account required. Access is limited."
+  title: "Team W Inventory | Internal",
+  description: "Internal off-market inventory tool for Team W Realty."
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
