@@ -16,6 +16,9 @@ export default async function SharedListing({ params }: { params: { token: strin
     .eq("token", params.token).maybeSingle();
   if (!share || share.revoked) notFound();
 
+  // count the view so the agent can see the client opened it
+  await admin.rpc("log_share_view", { share_token: params.token });
+
   const { data: l } = await admin.from("listings")
     .select("id, status, public_name, exact_address, town, neighborhood_label, price, price_max, price_display, beds, baths, sqft, lot_desc, property_type, delivery_date, description_public")
     .eq("id", share.listing_id).single();

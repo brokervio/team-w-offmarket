@@ -24,6 +24,8 @@ export default async function Header() {
         {user && (
           <nav className="flex items-center gap-4 text-sm font-semibold">
             <Link href="/browse" className="text-navy hover:text-teal">Browse</Link>
+            <Link href="/agent/needs" className="text-navy hover:text-teal">Buyers</Link>
+            <Link href="/agent/links" className="text-navy hover:text-teal hidden md:inline">Links</Link>
             <Link href="/agent/listings" className="text-navy hover:text-teal hidden sm:inline">Manage</Link>
             {profile?.role === "admin" && (
               <Link href="/admin" className="text-navy hover:text-teal">Admin</Link>

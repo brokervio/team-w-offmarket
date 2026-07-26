@@ -6,6 +6,7 @@ import { supabaseServer, supabaseAdmin } from "@/lib/supabase-server";
 import { formatPrice, STATUS_LABEL, TYPE_LABEL } from "@/lib/access";
 import { BedDouble, Bath, Ruler, MapPin, Pencil, Lock, Camera, CalendarDays, UserCheck, ExternalLink } from "lucide-react";
 import ShareActions from "@/components/ShareActions";
+import { needMatchesListing, type BuyerNeed } from "@/lib/match";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,13 @@ export default async function ListingDetail({ params }: { params: { id: string }
 
   const builder = l.builders as { name: string; contact_name: string | null; contact_phone: string | null } | null;
   const listingAgent = l.listing_agent as { full_name: string | null } | null;
+
+  // active buyers on the board whose criteria this listing fits
+  const { data: needs } = await supabase.from("buyer_needs")
+    .select("*, agent:agent_id(full_name, phone)")
+    .eq("status", "active");
+  const buyerMatches = ((needs ?? []) as (BuyerNeed & { agent: { full_name: string | null; phone: string | null } })[])
+    .filter(n => needMatchesListing(n, l));
 
   return (
     <>
@@ -134,6 +142,24 @@ export default async function ListingDetail({ params }: { params: { id: string }
 
             <ShareActions listingId={l.id} addressLine={l.exact_address || l.public_name}
                           publicName={l.public_name} town={l.town} />
+
+            {buyerMatches.length > 0 && (
+              <div className="card p-5 border-teal">
+                <p className="text-xs font-bold text-teal">POTENTIAL BUYERS ({buyerMatches.length})</p>
+                <p className="text-xs text-slate-500 mt-1">Buyers on the team board whose criteria this listing fits.</p>
+                <div className="mt-3 space-y-2.5">
+                  {buyerMatches.map(n => (
+                    <div key={n.id} className="text-sm">
+                      <p className="font-semibold text-navy">{n.client_label}</p>
+                      <p className="text-xs text-slate-500">
+                        Buyer of {n.agent?.full_name ?? "an agent"}
+                        {n.agent?.phone && <> | <a href={"tel:" + n.agent.phone} className="text-teal font-semibold">{n.agent.phone}</a></>}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* REPRESENTATION */}
             <div className="card p-5">

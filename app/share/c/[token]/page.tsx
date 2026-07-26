@@ -16,6 +16,9 @@ export default async function SharedCollection({ params }: { params: { token: st
     .eq("token", params.token).maybeSingle();
   if (!col || col.revoked) notFound();
 
+  // count the view so the agent can see the client opened it
+  await admin.rpc("log_collection_view", { col_token: params.token });
+
   const { data: items } = await admin.from("listing_collection_items")
     .select("sort_order, listing:listing_id(id, status, public_name, exact_address, town, neighborhood_label, price, price_max, price_display, beds, baths, sqft, property_type)")
     .eq("collection_id", col.id).order("sort_order");
