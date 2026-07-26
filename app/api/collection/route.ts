@@ -20,6 +20,15 @@ export async function POST(req: Request) {
   }
 
   const admin = supabaseAdmin();
+
+  // private builds can never go to clients
+  const { data: allowed } = await admin.from("listings")
+    .select("id").in("id", listing_ids).neq("status", "private_build");
+  const allowedIds = (allowed ?? []).map(l => l.id);
+  if (!allowedIds.length) {
+    return NextResponse.json({ error: "None of these can be shared. Private builds are not for sale." }, { status: 400 });
+  }
+
   const token = crypto.randomUUID().replace(/-/g, "");
   const { data: col, error } = await admin.from("listing_collections")
     .insert({ token, show_address: show_address === true, created_by: user.id })
@@ -29,7 +38,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Could not create the link." }, { status: 500 });
   }
 
-  const items = listing_ids.map((id: string, i: number) => ({
+  const items = allowedIds.map((id: string, i: number) => ({
     collection_id: col.id, listing_id: id, sort_order: i
   }));
   const { error: iErr } = await admin.from("listing_collection_items").insert(items);

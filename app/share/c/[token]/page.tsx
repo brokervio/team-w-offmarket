@@ -25,7 +25,7 @@ export default async function SharedCollection({ params }: { params: { token: st
 
   const listings = (items ?? [])
     .map(i => i.listing as any)
-    .filter(l => l && l.status !== "archived");
+    .filter(l => l && l.status !== "archived" && l.status !== "private_build");
   if (!listings.length) notFound();
 
   // cover photo per listing

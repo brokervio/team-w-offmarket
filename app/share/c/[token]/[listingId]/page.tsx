@@ -25,7 +25,7 @@ export default async function SharedCollectionListing({ params }: {
   const { data: l } = await admin.from("listings")
     .select("id, status, public_name, exact_address, town, neighborhood_label, price, price_max, price_display, beds, baths, sqft, lot_desc, property_type, delivery_date, description_public")
     .eq("id", params.listingId).single();
-  if (!l) notFound();
+  if (!l || l.status === "private_build") notFound();
 
   const { data: media } = await admin.from("listing_media")
     .select("storage_path")

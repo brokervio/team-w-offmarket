@@ -17,7 +17,8 @@ const STATUS_STYLE: Record<string, string> = {
   available: "bg-teal text-white",
   in_contract: "bg-navy text-white",
   sold: "bg-slate-700 text-white",
-  archived: "bg-slate-200 text-slate-600"
+  archived: "bg-slate-200 text-slate-600",
+  private_build: "bg-rose-100 text-rose-700 border border-rose-300"
 };
 
 export default async function ListingDetail({ params }: { params: { id: string } }) {
@@ -140,8 +141,18 @@ export default async function ListingDetail({ params }: { params: { id: string }
               </Link>
             )}
 
-            <ShareActions listingId={l.id} addressLine={l.exact_address || l.public_name}
-                          publicName={l.public_name} town={l.town} />
+            {l.status === "private_build" ? (
+              <div className="card p-5 border-rose-300 bg-rose-50">
+                <p className="text-xs font-bold text-rose-700">NOT FOR SALE</p>
+                <p className="text-sm text-slate-600 mt-1">
+                  This is a private build. It is tracked here so the team can answer
+                  inquiries about it. It cannot be shared with clients.
+                </p>
+              </div>
+            ) : (
+              <ShareActions listingId={l.id} addressLine={l.exact_address || l.public_name}
+                            publicName={l.public_name} town={l.town} />
+            )}
 
             {buyerMatches.length > 0 && (
               <div className="card p-5 border-teal">

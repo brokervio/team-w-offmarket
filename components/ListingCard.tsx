@@ -20,7 +20,8 @@ const STATUS_STYLE: Record<string, string> = {
   available: "bg-teal text-white",
   in_contract: "bg-navy text-white",
   sold: "bg-slate-700 text-white",
-  archived: "bg-slate-200 text-slate-600"
+  archived: "bg-slate-200 text-slate-600",
+  private_build: "bg-rose-100 text-rose-700 border border-rose-300"
 };
 
 export default function ListingCard({ l }: { l: ListingRow }) {

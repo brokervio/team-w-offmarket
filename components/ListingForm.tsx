@@ -12,6 +12,7 @@ const STATUS_OPTIONS = [
   { value: "available", label: "Available" },
   { value: "in_contract", label: "In Contract" },
   { value: "sold", label: "Sold" },
+  { value: "private_build", label: "Private build (not for sale)" },
   { value: "archived", label: "Archived (hidden)" }
 ];
 

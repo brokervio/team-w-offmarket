@@ -63,14 +63,17 @@ export default function BrowseGrid({ listings }: { listings: ListingRow[] }) {
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
         {listings.map(l => {
           const isSel = selected.has(l.id);
+          const shareable = l.status !== "private_build";
           return (
             <div key={l.id} className={"relative rounded-card " + (isSel ? "ring-2 ring-teal" : "")}>
-              <button type="button" title={isSel ? "Remove from client link" : "Add to client link"}
-                      onClick={e => { e.preventDefault(); toggle(l.id); }}
-                      className={"absolute top-3 right-3 z-10 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-colors " +
-                        (isSel ? "bg-teal border-teal text-white" : "bg-white/90 border-slate-300 text-transparent hover:border-teal")}>
-                <Check size={15} />
-              </button>
+              {shareable && (
+                <button type="button" title={isSel ? "Remove from client link" : "Add to client link"}
+                        onClick={e => { e.preventDefault(); toggle(l.id); }}
+                        className={"absolute top-3 right-3 z-10 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-colors " +
+                          (isSel ? "bg-teal border-teal text-white" : "bg-white/90 border-slate-300 text-transparent hover:border-teal")}>
+                  <Check size={15} />
+                </button>
+              )}
               <ListingCard l={l} />
             </div>
           );

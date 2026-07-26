@@ -29,7 +29,8 @@ export const STATUS_LABEL: Record<string,string> = {
   available: "Available",
   in_contract: "In Contract",
   sold: "Sold",
-  archived: "Archived"
+  archived: "Archived",
+  private_build: "Private Build - Not for Sale"
 };
 
 export const TYPE_LABEL: Record<string,string> = {
