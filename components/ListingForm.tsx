@@ -19,7 +19,7 @@ export type ExistingPhoto = { id: string; url: string };
 export type TeamMember = { id: string; full_name: string | null };
 
 export default function ListingForm({
-  listingId, initial, existingPhotos = [], team, currentUserId, isAdmin = false
+  listingId, initial, existingPhotos = [], team, currentUserId, isAdmin = false, aiEnabled = false
 }: {
   listingId?: string;
   initial?: Record<string, any>;
@@ -27,6 +27,7 @@ export default function ListingForm({
   team: TeamMember[];
   currentUserId: string;
   isAdmin?: boolean;
+  aiEnabled?: boolean;
 }) {
   // Admins assign any agent as the listing agent. Agents can only
   // assign themselves (or whoever an admin already assigned).
@@ -372,14 +373,18 @@ export default function ListingForm({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="label !mb-0">Description</label>
-              <button type="button" onClick={generateDescription} disabled={aiBusy}
-                      className="text-xs font-semibold text-teal hover:text-navy inline-flex items-center gap-1 disabled:opacity-50">
-                <Sparkles size={13} /> {aiBusy ? "Writing..." : "Write it with AI"}
-              </button>
+              {aiEnabled && (
+                <button type="button" onClick={generateDescription} disabled={aiBusy}
+                        className="text-xs font-semibold text-teal hover:text-navy inline-flex items-center gap-1 disabled:opacity-50">
+                  <Sparkles size={13} /> {aiBusy ? "Writing..." : "Write it with AI"}
+                </button>
+              )}
             </div>
             <textarea className="input" rows={4} value={f.description_public} onChange={e => set("description_public", e.target.value)} />
             {aiErr && <p className="text-xs text-red-600 font-semibold mt-1">{aiErr}</p>}
-            <p className="text-xs text-slate-400 mt-1">AI uses the property details above. It is never given the address. Always read it over before saving.</p>
+            {aiEnabled && (
+              <p className="text-xs text-slate-400 mt-1">AI uses the property details above. It is never given the address. Always read it over before saving.</p>
+            )}
           </div>
         </div>
       </section>

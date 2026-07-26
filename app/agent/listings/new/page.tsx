@@ -20,7 +20,7 @@ export default async function NewListing() {
         <Link href="/agent/listings" className="text-sm text-teal font-semibold">&larr; Back to listings</Link>
         <h1 className="text-2xl mt-2">Add Listing</h1>
         <ListingForm team={(team ?? []) as TeamMember[]} currentUserId={user!.id}
-                     isAdmin={me?.role === "admin"} />
+                     isAdmin={me?.role === "admin"} aiEnabled={!!process.env.ANTHROPIC_API_KEY} />
       </main>
     </>
   );

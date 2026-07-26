@@ -60,7 +60,7 @@ export default async function EditListing({ params }: { params: { id: string } }
         <h1 className="text-2xl mt-2">Edit Listing</h1>
         <ListingForm listingId={params.id} initial={listing} existingPhotos={photos}
                      team={(team ?? []) as TeamMember[]} currentUserId={user!.id}
-                     isAdmin={me?.role === "admin"} />
+                     isAdmin={me?.role === "admin"} aiEnabled={!!process.env.ANTHROPIC_API_KEY} />
       </main>
     </>
   );
