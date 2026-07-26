@@ -28,6 +28,7 @@ export default async function Header() {
             {profile?.role === "admin" && (
               <Link href="/admin" className="text-navy hover:text-teal">Admin</Link>
             )}
+            <Link href="/profile" className="text-navy hover:text-teal hidden md:inline">My Profile</Link>
             <Link href="/agent/listings/new" className="btn-primary !py-2 !px-3 text-sm">
               <Plus size={16} /> <span className="hidden sm:inline">Add Listing</span>
             </Link>

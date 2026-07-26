@@ -132,7 +132,8 @@ export default async function ListingDetail({ params }: { params: { id: string }
               </Link>
             )}
 
-            <ShareActions listingId={l.id} addressLine={l.exact_address || l.public_name} town={l.town} />
+            <ShareActions listingId={l.id} addressLine={l.exact_address || l.public_name}
+                          publicName={l.public_name} town={l.town} />
 
             {/* REPRESENTATION */}
             <div className="card p-5">

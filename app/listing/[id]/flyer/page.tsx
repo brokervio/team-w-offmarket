@@ -8,12 +8,19 @@ import PrintButton from "@/components/PrintButton";
 export const dynamic = "force-dynamic";
 
 // One-page flyer, optimized for print / save-as-PDF.
-export default async function ListingFlyer({ params }: { params: { id: string } }) {
+// ?noaddress=1 hides the exact address (the default from the share card).
+export default async function ListingFlyer({ params, searchParams }: {
+  params: { id: string }; searchParams: Record<string, string>;
+}) {
   const supabase = supabaseServer();
-  const { data: l } = await supabase.from("listings")
-    .select("*, listing_agent:listing_agent_id(full_name)")
-    .eq("id", params.id).single();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: l } = await supabase.from("listings").select("*").eq("id", params.id).single();
   if (!l) notFound();
+
+  // contact block belongs to whoever is printing the flyer
+  const { data: me } = await supabase.from("profiles")
+    .select("full_name, phone, contact_email, avatar_path")
+    .eq("id", user!.id).single();
 
   const { data: media } = await supabase.from("listing_media")
     .select("storage_path, visibility")
@@ -26,8 +33,16 @@ export default async function ListingFlyer({ params }: { params: { id: string } 
       .createSignedUrl(m.storage_path, 3600);
     if (signed) photos.push(signed.signedUrl);
   }
+  let avatarUrl: string | null = null;
+  if (me?.avatar_path) {
+    const { data: av } = await admin.storage.from("listing-media-public")
+      .createSignedUrl(me.avatar_path, 3600);
+    if (av) avatarUrl = av.signedUrl;
+  }
 
-  const agent = l.listing_agent as { full_name: string | null } | null;
+  const hideAddress = searchParams.noaddress === "1";
+  const headline = hideAddress || !l.exact_address ? l.public_name : l.exact_address;
+  const phone = me?.phone || "845-422-5238";
 
   return (
     <div className="min-h-screen bg-white">
@@ -35,7 +50,13 @@ export default async function ListingFlyer({ params }: { params: { id: string } 
         {/* SCREEN-ONLY BAR */}
         <div className="flex items-center justify-between mb-6 print:hidden">
           <Link href={"/listing/" + l.id} className="text-sm text-teal font-semibold">&larr; Back to listing</Link>
-          <PrintButton />
+          <div className="flex items-center gap-3">
+            <Link href={"/listing/" + l.id + "/flyer" + (hideAddress ? "" : "?noaddress=1")}
+                  className="text-xs font-semibold text-slate-500 hover:text-navy">
+              {hideAddress ? "Show address" : "Hide address"}
+            </Link>
+            <PrintButton />
+          </div>
         </div>
 
         {/* FLYER HEADER */}
@@ -66,7 +87,7 @@ export default async function ListingFlyer({ params }: { params: { id: string } 
           <div>
             <p className="text-3xl font-extrabold text-navy">{formatPrice(l)}</p>
             <p className="mt-1 text-lg font-semibold text-navy flex items-center gap-1.5">
-              <MapPin size={18} className="text-teal" /> {l.exact_address || l.public_name}
+              <MapPin size={18} className="text-teal" /> {headline}
             </p>
             <p className="text-sm text-slate-500">{l.town}{l.neighborhood_label ? ", " + l.neighborhood_label : ""}</p>
           </div>
@@ -92,12 +113,20 @@ export default async function ListingFlyer({ params }: { params: { id: string } 
 
         {/* CONTACT FOOTER */}
         <div className="mt-6 rounded-card bg-navy text-white px-6 py-4 flex items-center justify-between gap-4">
-          <div>
-            <p className="font-bold">{agent?.full_name ?? "Team W Realty"}</p>
-            <p className="text-sm text-slate-200">Team W Realty LLC | Licensed Real Estate Broker</p>
+          <div className="flex items-center gap-3 min-w-0">
+            {avatarUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarUrl} alt={me?.full_name ?? "Agent"}
+                   className="w-14 h-14 rounded-full object-cover border-2 border-teal shrink-0" />
+            )}
+            <div className="min-w-0">
+              <p className="font-bold truncate">{me?.full_name ?? "Team W Realty"}</p>
+              <p className="text-sm text-slate-200 truncate">Team W Realty LLC | Licensed Real Estate Broker</p>
+              {me?.contact_email && <p className="text-sm text-teal-light truncate">{me.contact_email}</p>}
+            </div>
           </div>
-          <div className="text-right">
-            <p className="font-extrabold text-lg">845-422-5238</p>
+          <div className="text-right shrink-0">
+            <p className="font-extrabold text-lg">{phone}</p>
             <p className="text-xs text-slate-300">55 Old Turnpike Rd #408, Nanuet, NY</p>
           </div>
         </div>

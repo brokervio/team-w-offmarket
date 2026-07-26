@@ -11,21 +11,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Staff only" }, { status: 403 });
   }
 
-  const { listing_id } = await req.json();
+  const { listing_id, show_address } = await req.json();
   if (!listing_id) return NextResponse.json({ error: "Missing listing_id" }, { status: 400 });
+  const showAddress = show_address === true; // address hidden by default
 
   const admin = supabaseAdmin();
 
-  // reuse an existing live link from this user for this listing
+  // reuse an existing live link from this user for this listing with the same address setting
   const { data: existing } = await admin.from("listing_shares")
     .select("token")
     .eq("listing_id", listing_id).eq("created_by", user.id).eq("revoked", false)
+    .eq("show_address", showAddress)
     .limit(1).maybeSingle();
   if (existing) return NextResponse.json({ token: existing.token });
 
   const token = crypto.randomUUID().replace(/-/g, "");
   const { error } = await admin.from("listing_shares")
-    .insert({ listing_id, token, created_by: user.id });
+    .insert({ listing_id, token, created_by: user.id, show_address: showAddress });
   if (error) {
     console.error("share insert failed", error);
     return NextResponse.json({ error: "Could not create link" }, { status: 500 });

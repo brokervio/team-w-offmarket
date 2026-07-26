@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-client";
-import { Lock, Upload, Trash2, ImagePlus, UserCheck } from "lucide-react";
+import { Lock, Upload, Trash2, ImagePlus, UserCheck, Sparkles } from "lucide-react";
 
 const TOWNS = ["Monsey","Spring Valley","Airmont","Suffern","Nanuet","New Hempstead","Pomona","Wesley Hills","New Square","Monroe","Kiryas Joel","Monticello","Chester","Other"];
 
@@ -72,7 +72,28 @@ export default function ListingForm({
   const [err, setErr] = useState("");
   const [progress, setProgress] = useState("");
   const [busy, setBusy] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiErr, setAiErr] = useState("");
   const set = (k: string, v: any) => setF(prev => ({ ...prev, [k]: v }));
+
+  async function generateDescription() {
+    setAiErr(""); setAiBusy(true);
+    // The exact address is intentionally NOT sent to the AI.
+    const r = await fetch("/api/generate-description", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        property_type: f.property_type, town: f.town, neighborhood_label: f.neighborhood_label,
+        beds: f.beds, baths: f.baths, sqft: f.sqft, lot_desc: f.lot_desc,
+        delivery_date: f.delivery_date, price: f.price_display === "exact" ? f.price : null,
+        status: f.status
+      })
+    });
+    setAiBusy(false);
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) { setAiErr(body.error ?? "Could not generate a description."); return; }
+    set("description_public", body.description);
+  }
 
   // Google Places autocomplete lights up automatically once a real
   // NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is configured.
@@ -348,8 +369,18 @@ export default function ListingForm({
             <div>{label("Area label")}
               <input className="input" value={f.neighborhood_label} onChange={e => set("neighborhood_label", e.target.value)} placeholder="Summit Ave corridor" /></div>
           </div>
-          <div>{label("Description")}
-            <textarea className="input" rows={4} value={f.description_public} onChange={e => set("description_public", e.target.value)} /></div>
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="label !mb-0">Description</label>
+              <button type="button" onClick={generateDescription} disabled={aiBusy}
+                      className="text-xs font-semibold text-teal hover:text-navy inline-flex items-center gap-1 disabled:opacity-50">
+                <Sparkles size={13} /> {aiBusy ? "Writing..." : "Write it with AI"}
+              </button>
+            </div>
+            <textarea className="input" rows={4} value={f.description_public} onChange={e => set("description_public", e.target.value)} />
+            {aiErr && <p className="text-xs text-red-600 font-semibold mt-1">{aiErr}</p>}
+            <p className="text-xs text-slate-400 mt-1">AI uses the property details above. It is never given the address. Always read it over before saving.</p>
+          </div>
         </div>
       </section>
 

@@ -2,16 +2,17 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase-server";
 import CreateTeamForm from "@/components/CreateTeamForm";
-import { ShieldCheck } from "lucide-react";
+import TeamManager, { type TeamRow } from "@/components/TeamManager";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPanel() {
   const supabase = supabaseServer();
   const admin = supabaseAdmin();
+  const { data: { user } } = await supabase.auth.getUser();
 
   const [{ data: staff }, { count: liveCount }, { count: draftCount }, usersRes] = await Promise.all([
-    supabase.from("profiles").select("id, full_name, role, created_at")
+    supabase.from("profiles").select("id, full_name, phone, contact_email, role, created_at")
       .in("role", ["agent", "admin"]).order("created_at"),
     supabase.from("listings").select("id", { count: "exact", head: true })
       .in("status", ["coming_soon", "available", "in_contract"]),
@@ -22,6 +23,16 @@ export default async function AdminPanel() {
 
   const emailById: Record<string, string> = {};
   for (const u of usersRes.data?.users ?? []) emailById[u.id] = u.email ?? "";
+
+  const team: TeamRow[] = (staff ?? []).map(p => ({
+    id: p.id,
+    full_name: p.full_name ?? "",
+    email: emailById[p.id] ?? "",
+    phone: p.phone ?? "",
+    contact_email: p.contact_email ?? "",
+    role: p.role,
+    isMe: p.id === user!.id
+  }));
 
   return (
     <>
@@ -38,20 +49,10 @@ export default async function AdminPanel() {
         {/* TEAM */}
         <section className="mt-8 card p-5">
           <h2 className="text-lg">Team</h2>
-          <div className="mt-3 divide-y divide-slate-100">
-            {(staff ?? []).map(p => (
-              <div key={p.id} className="py-3 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-semibold text-navy truncate flex items-center gap-1.5">
-                    {p.full_name || "Unnamed"}
-                    {p.role === "admin" && <ShieldCheck size={15} className="text-teal" />}
-                  </p>
-                  <p className="text-sm text-slate-500 truncate">{emailById[p.id] || "no email on file"}</p>
-                </div>
-                <span className={p.role === "admin" ? "badge-teal" : "badge-navy"}>{p.role}</span>
-              </div>
-            ))}
-          </div>
+          <p className="text-sm text-slate-500 mt-1">
+            Edit details, reset passwords, or remove agents. A removed agent's listings transfer to you.
+          </p>
+          <TeamManager team={team} />
         </section>
 
         {/* ADD TEAM MEMBER */}

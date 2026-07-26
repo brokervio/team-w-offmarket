@@ -12,7 +12,7 @@ export default async function SharedListing({ params }: { params: { token: strin
   const admin = supabaseAdmin();
 
   const { data: share } = await admin.from("listing_shares")
-    .select("listing_id, revoked, agent:created_by(full_name)")
+    .select("listing_id, revoked, show_address, agent:created_by(full_name, phone, contact_email, avatar_path)")
     .eq("token", params.token).maybeSingle();
   if (!share || share.revoked) notFound();
 
@@ -32,7 +32,19 @@ export default async function SharedListing({ params }: { params: { token: strin
     if (signed) photos.push(signed.signedUrl);
   }
 
-  const agent = share.agent as unknown as { full_name: string | null } | null;
+  const agent = share.agent as unknown as {
+    full_name: string | null; phone: string | null;
+    contact_email: string | null; avatar_path: string | null;
+  } | null;
+  let avatarUrl: string | null = null;
+  if (agent?.avatar_path) {
+    const { data: av } = await admin.storage.from("listing-media-public")
+      .createSignedUrl(agent.avatar_path, 86400);
+    if (av) avatarUrl = av.signedUrl;
+  }
+  const agentPhone = agent?.phone || "845-422-5238";
+  // Address only appears if the agent chose to share it
+  const headline = share.show_address && l.exact_address ? l.exact_address : l.public_name;
 
   return (
     <div className="min-h-screen bg-surface">
@@ -71,7 +83,7 @@ export default async function SharedListing({ params }: { params: { token: strin
             <div>
               <p className="text-3xl font-extrabold text-navy">{formatPrice(l)}</p>
               <p className="mt-1 text-lg font-semibold text-navy flex items-center gap-1.5">
-                <MapPin size={18} className="text-teal" /> {l.exact_address || l.public_name}
+                <MapPin size={18} className="text-teal" /> {headline}
               </p>
               <p className="text-sm text-slate-500 mt-0.5">{l.town}{l.neighborhood_label ? ", " + l.neighborhood_label : ""}</p>
             </div>
@@ -95,12 +107,28 @@ export default async function SharedListing({ params }: { params: { token: strin
           )}
         </div>
 
-        <div className="mt-6 card p-6 text-center bg-navy text-white border-navy">
-          <p className="text-lg font-bold text-white">Interested in this property?</p>
-          <p className="text-sm text-slate-200 mt-1">
-            This is an off-market opportunity. Reply to {agent?.full_name ?? "your Team W agent"} or call the office.
-          </p>
-          <a href="tel:845-422-5238" className="btn-primary mt-4 !px-8">Call 845-422-5238</a>
+        <div className="mt-6 card p-6 bg-navy text-white border-navy">
+          <div className="flex flex-col sm:flex-row items-center gap-4 justify-center text-center sm:text-left">
+            {avatarUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarUrl} alt={agent?.full_name ?? "Agent"}
+                   className="w-20 h-20 rounded-full object-cover border-2 border-teal shrink-0" />
+            )}
+            <div>
+              <p className="text-lg font-bold text-white">Interested in this property?</p>
+              <p className="text-sm text-slate-200 mt-1">
+                This is an off-market opportunity presented by {agent?.full_name ?? "Team W Realty"}.
+              </p>
+              <div className="mt-3 flex flex-col sm:flex-row gap-2 justify-center sm:justify-start">
+                <a href={"tel:" + agentPhone} className="btn-primary !px-6 !py-2 text-sm">Call {agentPhone}</a>
+                {agent?.contact_email && (
+                  <a href={"mailto:" + agent.contact_email} className="btn-secondary !px-6 !py-2 text-sm !border-white !text-white hover:!bg-white/10">
+                    Email {agent.full_name?.split(" ")[0] ?? "the agent"}
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
         <p className="mt-6 text-center text-xs text-slate-400">
