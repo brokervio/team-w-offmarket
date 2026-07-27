@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, Save } from "lucide-react";
+import { compressImage } from "@/lib/compress";
 
 export default function ProfileForm({ initial }: {
   initial: { full_name: string; phone: string; contact_email: string; avatar_url: string | null };
@@ -22,7 +23,7 @@ export default function ProfileForm({ initial }: {
     fd.append("full_name", f.full_name);
     fd.append("phone", f.phone);
     fd.append("contact_email", f.contact_email);
-    if (photo) fd.append("photo", photo);
+    if (photo) fd.append("photo", await compressImage(photo, 1200));
     const r = await fetch("/api/profile", { method: "POST", body: fd });
     setBusy(false);
     if (!r.ok) {

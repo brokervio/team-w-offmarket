@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-client";
+import { compressImage } from "@/lib/compress";
 import { Lock, Upload, Trash2, ImagePlus, UserCheck, Sparkles, FileText, Paperclip } from "lucide-react";
 
 const TOWNS = ["Monsey","Spring Valley","Airmont","Suffern","Nanuet","New Hempstead","Pomona","Wesley Hills","New Square","Monroe","Kiryas Joel","Monticello","Chester","Other"];
@@ -221,22 +222,27 @@ export default function ListingForm({
 
     for (let i = 0; i < files.length; i++) {
       setProgress(`Uploading photo ${i + 1} of ${files.length}...`);
+      // shrink big renderings and phone photos to web size before upload
+      const compressed = await compressImage(files[i]);
       const fd = new FormData();
-      fd.append("file", files[i]);
+      fd.append("file", compressed);
       fd.append("listing_id", id!);
       fd.append("sort_order", String(photos.length + i));
       const r = await fetch("/api/upload", { method: "POST", body: fd });
       if (!r.ok) {
         setBusy(false); setProgress("");
-        setErr(`Photo ${i + 1} failed to upload. The listing itself was saved. Open it again to retry the photos.`);
+        setErr(r.status === 413
+          ? `Photo ${i + 1} is too large even after compression. The listing was saved; try exporting the image as JPG and re-adding it.`
+          : `Photo ${i + 1} failed to upload. The listing itself was saved. Open it again to retry the photos.`);
         return;
       }
     }
 
     for (let i = 0; i < newDocs.length; i++) {
       setProgress(`Uploading file ${i + 1} of ${newDocs.length}...`);
+      const doc = await compressImage(newDocs[i]); // shrinks image files; PDFs pass through
       const fd = new FormData();
-      fd.append("file", newDocs[i]);
+      fd.append("file", doc);
       fd.append("listing_id", id!);
       fd.append("kind", "file");
       const r = await fetch("/api/upload", { method: "POST", body: fd });
