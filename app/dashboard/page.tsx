@@ -4,7 +4,7 @@ import Link from "next/link";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase-server";
 import { formatPrice } from "@/lib/access";
 import { needMatchesListing, type BuyerNeed } from "@/lib/match";
-import { Home, Users, Flame, Eye, ArrowRight } from "lucide-react";
+import { Home, Users, Flame, Eye, ArrowRight, MessageCircle } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +19,7 @@ export default async function Dashboard() {
   // "new" = since last visit; first visit falls back to the last 7 days
   const since = me?.last_seen_at ?? new Date(Date.now() - 7 * 86400000).toISOString();
 
-  const [{ data: listings }, { data: needs }, { data: myShares }, { data: myCols }] = await Promise.all([
+  const [{ data: listings }, { data: needs }, { data: myShares }, { data: myCols }, { data: intelPosts }, { data: intelReplies }] = await Promise.all([
     supabase.from("listings")
       .select("id, status, public_name, exact_address, town, property_type, beds, price, price_max, price_display, created_by, listing_agent_id, created_at")
       .not("status", "in", "(sold,archived)"),
@@ -31,7 +31,13 @@ export default async function Dashboard() {
       .eq("created_by", user!.id).gt("view_count", 0),
     supabase.from("listing_collections")
       .select("view_count, last_viewed_at, items:listing_collection_items(listing_id)")
-      .eq("created_by", user!.id).gt("view_count", 0)
+      .eq("created_by", user!.id).gt("view_count", 0),
+    supabase.from("intel_posts")
+      .select("id, location, question, created_at, author_id, author:author_id(full_name)")
+      .eq("status", "open").order("created_at", { ascending: false }),
+    supabase.from("intel_replies")
+      .select("id, body, created_at, author_id, author:author_id(full_name), post:post_id(location, author_id)")
+      .gt("created_at", since)
   ]);
 
   const inv = listings ?? [];
@@ -64,13 +70,20 @@ export default async function Dashboard() {
     }))
   ].filter(v => v.when && v.when > since);
 
+  // team intel: open questions, new ones, and answers on my posts
+  const openQuestions = (intelPosts ?? []) as any[];
+  const newQuestions = openQuestions.filter(p => p.created_at > since);
+  const answersForMe = ((intelReplies ?? []) as any[])
+    .filter(r => r.post?.author_id === user!.id && r.author_id !== user!.id);
+
   // stamp the visit (service role; only this field)
   const admin = supabaseAdmin();
   await admin.from("profiles").update({ last_seen_at: new Date().toISOString() }).eq("id", user!.id);
 
   const firstName = (me?.full_name ?? "").split(" ")[0] || "there";
   const allQuiet = !newListings.length && !newBuyers.length && !buyersForMine.length
-    && !matchesForMyBuyers.length && !recentViews.length;
+    && !matchesForMyBuyers.length && !recentViews.length
+    && !newQuestions.length && !answersForMe.length;
 
   const label = (l: any) => l.exact_address || l.public_name;
 
@@ -82,11 +95,12 @@ export default async function Dashboard() {
         <p className="text-sm text-slate-500 mt-1">Here is what happened since your last visit.</p>
 
         {/* STAT TILES */}
-        <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="mt-5 grid grid-cols-2 md:grid-cols-5 gap-3">
           <Tile href="/browse" n={newListings.length} l="New Listings" icon={<Home size={16} />} />
           <Tile href="/agent/needs" n={newBuyers.length} l="New Buyers" icon={<Users size={16} />} />
           <Tile href="/agent/needs" n={buyersForMine.reduce((a, x) => a + x.buyers.length, 0)} l="Buyers for Your Listings" icon={<Flame size={16} />} accent />
           <Tile href="/agent/links" n={recentViews.length} l="Links Opened" icon={<Eye size={16} />} />
+          <Tile href="/agent/intel" n={openQuestions.length} l="Open Questions" icon={<MessageCircle size={16} />} />
         </div>
 
         {allQuiet && (
@@ -171,6 +185,44 @@ export default async function Dashboard() {
                 ))}
               </div>
               <Link href="/agent/needs" className="text-sm font-semibold text-teal mt-3 inline-block">Open the board &rarr;</Link>
+            </section>
+          )}
+
+          {/* TEAM INTEL */}
+          {(answersForMe.length > 0 || newQuestions.length > 0) && (
+            <section className="card p-5">
+              <h2 className="text-lg flex items-center gap-2"><MessageCircle size={18} className="text-teal" /> Team intel</h2>
+              {answersForMe.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-xs font-bold text-teal">ANSWERS TO YOUR QUESTIONS</p>
+                  <div className="mt-1 divide-y divide-slate-100">
+                    {answersForMe.slice(0, 4).map((r: any) => (
+                      <div key={r.id} className="py-2">
+                        <p className="text-sm font-semibold text-navy">{r.post?.location}</p>
+                        <p className="text-sm text-slate-600">
+                          {r.body} <span className="text-xs text-slate-400">({r.author?.full_name ?? "teammate"})</span>
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {newQuestions.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-xs font-bold text-teal">NEW QUESTIONS FROM THE TEAM</p>
+                  <div className="mt-1 divide-y divide-slate-100">
+                    {newQuestions.slice(0, 4).map((p: any) => (
+                      <div key={p.id} className="py-2">
+                        <p className="text-sm font-semibold text-navy">{p.location}</p>
+                        <p className="text-xs text-slate-500">
+                          {p.question ?? "Anyone know this one?"} | {p.author?.full_name ?? "teammate"}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <Link href="/agent/intel" className="text-sm font-semibold text-teal mt-3 inline-block">Open the board &rarr;</Link>
             </section>
           )}
 
