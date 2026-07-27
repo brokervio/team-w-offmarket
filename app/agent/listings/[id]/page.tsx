@@ -2,7 +2,7 @@ import Header from "@/components/Header";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase-server";
-import ListingForm, { type ExistingPhoto, type TeamMember } from "@/components/ListingForm";
+import ListingForm, { type ExistingPhoto, type ExistingDoc, type TeamMember } from "@/components/ListingForm";
 import { Lock } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -40,16 +40,23 @@ export default async function EditListing({ params }: { params: { id: string } }
     .select("id, full_name").in("role", ["agent", "admin"]).order("full_name");
 
   const { data: media } = await supabase.from("listing_media")
-    .select("id, storage_path, visibility")
-    .eq("listing_id", params.id).eq("media_type", "photo")
+    .select("id, storage_path, visibility, media_type")
+    .eq("listing_id", params.id)
     .order("sort_order");
 
   const admin = supabaseAdmin();
   const photos: ExistingPhoto[] = [];
+  const docs: ExistingDoc[] = [];
   for (const m of media ?? []) {
     const bucket = m.visibility === "internal" ? "listing-media-internal" : "listing-media-public";
     const { data: signed } = await admin.storage.from(bucket).createSignedUrl(m.storage_path, 3600);
-    if (signed) photos.push({ id: m.id, url: signed.signedUrl });
+    if (!signed) continue;
+    if (m.media_type === "photo") {
+      photos.push({ id: m.id, url: signed.signedUrl });
+    } else {
+      const raw = m.storage_path.split("/").pop() ?? "file";
+      docs.push({ id: m.id, url: signed.signedUrl, name: raw.length > 37 ? raw.slice(37) : raw });
+    }
   }
 
   return (
@@ -58,7 +65,7 @@ export default async function EditListing({ params }: { params: { id: string } }
       <main className="max-w-3xl mx-auto px-4 py-6">
         <Link href="/agent/listings" className="text-sm text-teal font-semibold">&larr; Back to listings</Link>
         <h1 className="text-2xl mt-2">Edit Listing</h1>
-        <ListingForm listingId={params.id} initial={listing} existingPhotos={photos}
+        <ListingForm listingId={params.id} initial={listing} existingPhotos={photos} existingDocs={docs}
                      team={(team ?? []) as TeamMember[]} currentUserId={user!.id}
                      isAdmin={me?.role === "admin"} aiEnabled={!!process.env.ANTHROPIC_API_KEY} />
       </main>

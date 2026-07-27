@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-client";
-import { Lock, Upload, Trash2, ImagePlus, UserCheck, Sparkles } from "lucide-react";
+import { Lock, Upload, Trash2, ImagePlus, UserCheck, Sparkles, FileText, Paperclip } from "lucide-react";
 
 const TOWNS = ["Monsey","Spring Valley","Airmont","Suffern","Nanuet","New Hempstead","Pomona","Wesley Hills","New Square","Monroe","Kiryas Joel","Monticello","Chester","Other"];
 
@@ -17,14 +17,16 @@ const STATUS_OPTIONS = [
 ];
 
 export type ExistingPhoto = { id: string; url: string };
+export type ExistingDoc = { id: string; url: string; name: string };
 export type TeamMember = { id: string; full_name: string | null };
 
 export default function ListingForm({
-  listingId, initial, existingPhotos = [], team, currentUserId, isAdmin = false, aiEnabled = false
+  listingId, initial, existingPhotos = [], existingDocs = [], team, currentUserId, isAdmin = false, aiEnabled = false
 }: {
   listingId?: string;
   initial?: Record<string, any>;
   existingPhotos?: ExistingPhoto[];
+  existingDocs?: ExistingDoc[];
   team: TeamMember[];
   currentUserId: string;
   isAdmin?: boolean;
@@ -70,6 +72,9 @@ export default function ListingForm({
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [photos, setPhotos] = useState<ExistingPhoto[]>(existingPhotos);
+  const [newDocs, setNewDocs] = useState<File[]>([]);
+  const [docs, setDocs] = useState<ExistingDoc[]>(existingDocs);
+  const docInput = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [err, setErr] = useState("");
   const [progress, setProgress] = useState("");
@@ -153,6 +158,15 @@ export default function ListingForm({
     if (r.ok) setPhotos(prev => prev.filter(p => p.id !== id));
   }
 
+  async function removeExistingDoc(id: string) {
+    const r = await fetch("/api/upload", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ media_id: id })
+    });
+    if (r.ok) setDocs(prev => prev.filter(d => d.id !== id));
+  }
+
   async function save() {
     setErr("");
     if (!f.exact_address.trim()) { setErr("Enter the property address."); return; }
@@ -215,6 +229,21 @@ export default function ListingForm({
       if (!r.ok) {
         setBusy(false); setProgress("");
         setErr(`Photo ${i + 1} failed to upload. The listing itself was saved. Open it again to retry the photos.`);
+        return;
+      }
+    }
+
+    for (let i = 0; i < newDocs.length; i++) {
+      setProgress(`Uploading file ${i + 1} of ${newDocs.length}...`);
+      const fd = new FormData();
+      fd.append("file", newDocs[i]);
+      fd.append("listing_id", id!);
+      fd.append("kind", "file");
+      const r = await fetch("/api/upload", { method: "POST", body: fd });
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        setBusy(false); setProgress("");
+        setErr(body.error ?? `File ${i + 1} failed to upload. The listing itself was saved.`);
         return;
       }
     }
@@ -358,6 +387,50 @@ export default function ListingForm({
             <input className="input" type="url" value={f.photos_url} onChange={e => set("photos_url", e.target.value)}
                    placeholder="https://drive.google.com/..." /></div>
         </div>
+      </section>
+
+      {/* FILES: floor plans, surveys, docs. Internal bucket, agents only. */}
+      <section className="mt-4 card p-5 border-navy">
+        <p className="flex items-center gap-1.5 text-xs font-bold text-white bg-navy-dark w-fit px-2.5 py-1 rounded-full">
+          <Lock size={12} /> FILES (AGENTS ONLY)
+        </p>
+        <p className="text-xs text-slate-500 mt-2">
+          Floor plans, surveys, contracts. These never appear on client pages or flyers.
+        </p>
+        <div className="mt-3 space-y-2">
+          {docs.map(d => (
+            <div key={d.id} className="flex items-center justify-between gap-2 text-sm">
+              <a href={d.url} target="_blank" rel="noopener noreferrer"
+                 className="flex items-center gap-1.5 font-semibold text-teal hover:text-navy truncate">
+                <FileText size={15} className="shrink-0" /> {d.name}
+              </a>
+              <button type="button" onClick={() => removeExistingDoc(d.id)} title="Remove file"
+                      className="p-1.5 text-slate-400 hover:text-red-600 shrink-0"><Trash2 size={14} /></button>
+            </div>
+          ))}
+          {newDocs.map((d, i) => (
+            <div key={d.name + i} className="flex items-center justify-between gap-2 text-sm">
+              <span className="flex items-center gap-1.5 font-semibold text-navy truncate">
+                <FileText size={15} className="shrink-0 text-teal" /> {d.name}
+                <span className="text-xs font-normal text-slate-400">(uploads when you save)</span>
+              </span>
+              <button type="button" onClick={() => setNewDocs(prev => prev.filter((_, idx) => idx !== i))}
+                      title="Remove" className="p-1.5 text-slate-400 hover:text-red-600 shrink-0"><Trash2 size={14} /></button>
+            </div>
+          ))}
+        </div>
+        <button type="button" onClick={() => docInput.current?.click()}
+                className="btn-secondary !py-2 !px-4 text-sm mt-3">
+          <Paperclip size={14} /> Attach files
+        </button>
+        <input ref={docInput} type="file" multiple className="hidden"
+               accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,image/*"
+               onChange={e => {
+                 const picked = Array.from(e.target.files ?? []);
+                 setNewDocs(prev => [...prev, ...picked]);
+                 e.target.value = "";
+               }} />
+        <p className="mt-2 text-xs text-slate-400">PDF, Word, Excel, or images. Up to 8 MB each.</p>
       </section>
 
       {/* MARKETING COPY (future public site) */}

@@ -19,10 +19,30 @@ export async function POST(req: Request) {
   const file = form.get("file") as File | null;
   const listingId = form.get("listing_id") as string | null;
   const sortOrder = Number(form.get("sort_order") ?? 0);
+  const kind = (form.get("kind") as string | null) ?? "photo";
   if (!file || !listingId) {
     return NextResponse.json({ error: "Missing file or listing_id" }, { status: 400 });
   }
-  if (!file.type.startsWith("image/")) {
+
+  // "photo" goes to the public bucket (shareable with clients).
+  // "file" (floor plans, docs) goes to the INTERNAL bucket: agents only,
+  // never rendered on any client-facing page.
+  let bucket = "listing-media-public";
+  let mediaType = "photo";
+  let visibility = "public";
+  if (kind === "file") {
+    const okTypes = ["application/pdf", "image/", "application/msword",
+      "application/vnd.openxmlformats-officedocument", "application/vnd.ms-excel", "text/plain"];
+    if (!okTypes.some(t => file.type.startsWith(t))) {
+      return NextResponse.json({ error: "That file type is not supported. PDF, Word, Excel, or images work." }, { status: 400 });
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      return NextResponse.json({ error: "Keep files under 8 MB. For bigger files, use the Link to more photos field." }, { status: 400 });
+    }
+    bucket = "listing-media-internal";
+    mediaType = "doc";
+    visibility = "internal";
+  } else if (!file.type.startsWith("image/")) {
     return NextResponse.json({ error: "Only images are allowed" }, { status: 400 });
   }
 
@@ -31,8 +51,8 @@ export async function POST(req: Request) {
   const path = `${listingId}/${crypto.randomUUID()}-${safeName}`;
   const buf = Buffer.from(await file.arrayBuffer());
 
-  const up = await admin.storage.from("listing-media-public")
-    .upload(path, buf, { contentType: file.type || "image/jpeg" });
+  const up = await admin.storage.from(bucket)
+    .upload(path, buf, { contentType: file.type || "application/octet-stream" });
   if (up.error) {
     console.error("storage upload failed", up.error);
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });
@@ -41,8 +61,8 @@ export async function POST(req: Request) {
   const ins = await admin.from("listing_media").insert({
     listing_id: listingId,
     storage_path: path,
-    media_type: "photo",
-    visibility: "public",
+    media_type: mediaType,
+    visibility,
     sort_order: sortOrder
   });
   if (ins.error) {

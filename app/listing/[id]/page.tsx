@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase-server";
 import { formatPrice, STATUS_LABEL, TYPE_LABEL } from "@/lib/access";
-import { BedDouble, Bath, Ruler, MapPin, Pencil, Lock, Camera, CalendarDays, UserCheck, ExternalLink } from "lucide-react";
+import { BedDouble, Bath, Ruler, MapPin, Pencil, Lock, Camera, CalendarDays, UserCheck, ExternalLink, FileText } from "lucide-react";
 import ShareActions from "@/components/ShareActions";
 import { needMatchesListing, type BuyerNeed } from "@/lib/match";
 
@@ -35,16 +35,23 @@ export default async function ListingDetail({ params }: { params: { id: string }
   const canEdit = me?.role === "admin" || l.created_by === user!.id;
 
   const { data: media } = await supabase.from("listing_media")
-    .select("id, storage_path, visibility")
-    .eq("listing_id", params.id).eq("media_type", "photo")
+    .select("id, storage_path, visibility, media_type")
+    .eq("listing_id", params.id)
     .order("sort_order");
 
   const admin = supabaseAdmin();
   const photos: string[] = [];
+  const docs: { url: string; name: string }[] = [];
   for (const m of media ?? []) {
     const bucket = m.visibility === "internal" ? "listing-media-internal" : "listing-media-public";
     const { data: signed } = await admin.storage.from(bucket).createSignedUrl(m.storage_path, 3600);
-    if (signed) photos.push(signed.signedUrl);
+    if (!signed) continue;
+    if (m.media_type === "photo") {
+      photos.push(signed.signedUrl);
+    } else {
+      const raw = m.storage_path.split("/").pop() ?? "file";
+      docs.push({ url: signed.signedUrl, name: raw.length > 37 ? raw.slice(37) : raw });
+    }
   }
 
   const builder = l.builders as { name: string; contact_name: string | null; contact_phone: string | null } | null;
@@ -220,6 +227,19 @@ export default async function ListingDetail({ params }: { params: { id: string }
                 {l.notes_internal && (
                   <div><dt className="text-xs text-slate-500">Notes</dt>
                     <dd className="text-slate-600 whitespace-pre-line">{l.notes_internal}</dd></div>
+                )}
+                {docs.length > 0 && (
+                  <div>
+                    <dt className="text-xs text-slate-500">Files (agents only)</dt>
+                    {docs.map((d, i) => (
+                      <dd key={i}>
+                        <a href={d.url} target="_blank" rel="noopener noreferrer"
+                           className="text-teal font-semibold inline-flex items-center gap-1">
+                          <FileText size={13} /> {d.name}
+                        </a>
+                      </dd>
+                    ))}
+                  </div>
                 )}
                 {l.mls_number && (
                   <div><dt className="text-xs text-slate-500">Old MLS number</dt>
