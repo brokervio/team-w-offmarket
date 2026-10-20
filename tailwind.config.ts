@@ -11,7 +11,8 @@ const config: Config = {
         body: "#334155"
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"]
+        sans: ["Inter", "system-ui", "sans-serif"],
+        display: ["Bricolage Grotesque", "Inter", "system-ui", "sans-serif"]
       },
       borderRadius: { card: "12px", btn: "8px" }
     }

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -58,4 +58,15 @@ h1, h2, h3, h4 { @apply text-navy font-bold tracking-tight; }
            focus:outline-none focus:ring-2 focus:ring-teal focus:border-teal;
   }
   .label { @apply block text-sm font-semibold text-navy mb-1.5; }
+}
+
+/* Public buyer site: the sign-up sheet is the one animated moment. */
+@keyframes sheet-fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes sheet-rise { from { transform: translateY(24px); opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes sheet-pop { 0% { transform: scale(.6); opacity: 0 } 70% { transform: scale(1.08) } 100% { transform: none; opacity: 1 } }
+.sheet-fade { animation: sheet-fade .2s ease-out both }
+.sheet-rise { animation: sheet-rise .28s cubic-bezier(.2,.8,.2,1) both }
+.sheet-pop { animation: sheet-pop .4s ease-out both }
+@media (prefers-reduced-motion: reduce) {
+  .sheet-fade, .sheet-rise, .sheet-pop { animation: none }
 }

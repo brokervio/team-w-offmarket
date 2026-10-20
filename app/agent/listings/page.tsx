@@ -26,7 +26,7 @@ export default async function AgentListings() {
   const isAdmin = me?.role === "admin";
 
   const { data: listings } = await supabase.from("listings")
-    .select("id, status, public_name, town, exact_address, created_at, created_by")
+    .select("id, status, public_name, town, exact_address, created_at, created_by, show_public")
     .order("created_at", { ascending: false });
 
   return (
@@ -46,6 +46,7 @@ export default async function AgentListings() {
                   {l.town} | Added {new Date(l.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                 </p>
               </Link>
+              {l.show_public && <span className="badge shrink-0 bg-teal-light text-teal border border-teal" title="On the public buyer site">Public</span>}
               <span className={"badge shrink-0 " + (STATUS_STYLE[l.status] ?? "badge-gray")}>
                 {STATUS_LABEL[l.status] ?? l.status}
               </span>

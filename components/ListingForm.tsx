@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-client";
 import { compressImage } from "@/lib/compress";
 import { phoneDigits, type Builder } from "@/lib/builders";
-import { Lock, Upload, Trash2, ImagePlus, UserCheck, Sparkles, FileText, Paperclip, HardHat, Plus } from "lucide-react";
+import { Lock, Upload, Trash2, ImagePlus, UserCheck, Sparkles, FileText, Paperclip, HardHat, Plus, Globe } from "lucide-react";
 
 const TOWNS = ["Monsey","Spring Valley","Airmont","Suffern","Nanuet","New Hempstead","Pomona","Wesley Hills","New Square","Monroe","Kiryas Joel","Monticello","Chester","Other"];
 
@@ -66,6 +66,7 @@ export default function ListingForm({
     commission: initial?.commission ?? "",
     seller_phone: initial?.seller_phone ?? "",
     builder_id: initial?.builder_id ?? "",
+    show_public: initial?.show_public ?? false,
     // reference
     mls_number: initial?.mls_number ?? "",
     photos_url: initial?.photos_url ?? "",
@@ -260,6 +261,7 @@ export default function ListingForm({
       outside_agent_email: outside ? (f.outside_agent_email.trim() || null) : null,
       seller_phone: open ? (f.seller_phone || null) : null,
       builder_id: f.builder_id || null,
+      show_public: outside ? false : !!f.show_public,
       mls_number: f.mls_number || null,
       photos_url: f.photos_url || null,
       public_name: f.public_name.trim() || fallbackName(),
@@ -552,10 +554,24 @@ export default function ListingForm({
         <p className="mt-2 text-xs text-slate-400">PDF, Word, Excel, or images. Up to 8 MB each.</p>
       </section>
 
-      {/* MARKETING COPY (future public site) */}
-      <section className="mt-4 card p-5">
-        <p className="text-xs font-bold text-teal">MARKETING COPY</p>
-        <p className="text-xs text-slate-500 mt-1">Used if the site opens to outside buyers later. Keep street addresses out of these fields.</p>
+      {/* MARKETING COPY + PUBLIC SITE */}
+      <section className={"mt-4 card p-5 " + (f.show_public ? "border-teal" : "")}>
+        <p className="text-xs font-bold text-teal flex items-center gap-1.5"><Globe size={14} /> PUBLIC SITE</p>
+        <label className={"mt-3 flex items-start gap-3 " + (f.listing_rep === "outside" ? "opacity-50" : "cursor-pointer")}>
+          <input type="checkbox" className="mt-1 h-5 w-5 accent-teal shrink-0"
+                 checked={f.listing_rep !== "outside" && !!f.show_public}
+                 disabled={f.listing_rep === "outside"}
+                 onChange={e => set("show_public", e.target.checked)} />
+          <span>
+            <span className="font-semibold text-navy">Show on the public buyer site</span>
+            <span className="block text-sm text-slate-500 mt-0.5">
+              {f.listing_rep === "outside"
+                ? "Listings from other brokerages stay agent-only."
+                : "Only with the builder's or owner's OK. Buyers see photos, beds, baths, size, price, the area label and the description below. Never the address or builder. Check that no photo shows a house number or street sign."}
+            </span>
+          </span>
+        </label>
+        <p className="text-xs text-slate-500 mt-4">Keep street addresses out of these fields.</p>
         <div className="mt-4 space-y-4">
           <div className="grid sm:grid-cols-2 gap-4">
             <div>{label("Display name (no house numbers)")}

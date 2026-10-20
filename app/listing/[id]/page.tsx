@@ -54,6 +54,13 @@ export default async function ListingDetail({ params }: { params: { id: string }
     }
   }
 
+  const { data: webRequests } = await supabase.from("web_buyer_requests")
+    .select("created_at, buyer:buyer_id(full_name, phone, beds_min, budget_label, timeline, financing)")
+    .eq("listing_id", params.id).order("created_at", { ascending: false });
+  type WebReq = { created_at: string; buyer: { full_name: string; phone: string; beds_min: number | null;
+    budget_label: string | null; timeline: string | null; financing: string | null } | null };
+  const webReqs = (webRequests ?? []) as unknown as WebReq[];
+
   const builder = l.builders as { name: string; contact_name: string | null; contact_phone: string | null } | null;
   const listingAgent = l.listing_agent as { full_name: string | null } | null;
 
@@ -172,6 +179,24 @@ export default async function ListingDetail({ params }: { params: { id: string }
                       <p className="text-xs text-slate-500">
                         Buyer of {n.agent?.full_name ?? "an agent"}
                         {n.agent?.phone && <> | <a href={"tel:" + n.agent.phone} className="text-teal font-semibold">{n.agent.phone}</a></>}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {webReqs.length > 0 && (
+              <div className="card p-5 border-teal">
+                <p className="text-xs font-bold text-teal">WEBSITE BUYERS WHO ASKED ({webReqs.length})</p>
+                <div className="mt-3 space-y-3">
+                  {webReqs.map((r, i) => r.buyer && (
+                    <div key={i} className="text-sm">
+                      <p className="font-semibold text-navy">{r.buyer.full_name}</p>
+                      <a href={"tel:" + r.buyer.phone} className="text-teal font-semibold">{r.buyer.phone.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, "$1-$2-$3")}</a>
+                      <p className="text-xs text-slate-500">
+                        {[r.buyer.beds_min && `${r.buyer.beds_min}+ beds`, r.buyer.budget_label, r.buyer.timeline, r.buyer.financing].filter(Boolean).join(", ")}
+                        {" | "}{new Date(r.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                       </p>
                     </div>
                   ))}

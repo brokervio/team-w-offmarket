@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
-// INTERNAL MODE: the entire site requires a signed-in team account.
-// Only /login is public. Admin area additionally requires the admin role.
+// The agent portal requires a signed-in team account. The public buyer
+// site ("/" for visitors and /homes/*) and client share links are open.
+// Admin area additionally requires the admin role.
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
   const supabase = createServerClient(
@@ -25,7 +26,8 @@ export async function middleware(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    if (path === "/login") return res;
+    // Public buyer site: the home page and buyer home pages.
+    if (path === "/login" || path === "/" || path.startsWith("/homes/")) return res;
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
