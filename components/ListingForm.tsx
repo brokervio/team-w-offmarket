@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-client";
 import { compressImage } from "@/lib/compress";
-import { Lock, Upload, Trash2, ImagePlus, UserCheck, Sparkles, FileText, Paperclip } from "lucide-react";
+import { phoneDigits, type Builder } from "@/lib/builders";
+import { Lock, Upload, Trash2, ImagePlus, UserCheck, Sparkles, FileText, Paperclip, HardHat, Plus } from "lucide-react";
 
 const TOWNS = ["Monsey","Spring Valley","Airmont","Suffern","Nanuet","New Hempstead","Pomona","Wesley Hills","New Square","Monroe","Kiryas Joel","Monticello","Chester","Other"];
 
@@ -22,8 +23,9 @@ export type ExistingDoc = { id: string; url: string; name: string };
 export type TeamMember = { id: string; full_name: string | null };
 
 export default function ListingForm({
-  listingId, initial, existingPhotos = [], existingDocs = [], team, currentUserId, isAdmin = false, aiEnabled = false
+  listingId, initial, existingPhotos = [], existingDocs = [], team, builders: initialBuilders = [], currentUserId, isAdmin = false, aiEnabled = false
 }: {
+  builders?: Builder[];
   listingId?: string;
   initial?: Record<string, any>;
   existingPhotos?: ExistingPhoto[];
@@ -58,6 +60,7 @@ export default function ListingForm({
     listing_rep: initial?.is_open_listing ? "open" : (initial?.listing_agent_id ?? currentUserId),
     commission: initial?.commission ?? "",
     seller_phone: initial?.seller_phone ?? "",
+    builder_id: initial?.builder_id ?? "",
     // reference
     mls_number: initial?.mls_number ?? "",
     photos_url: initial?.photos_url ?? "",
@@ -83,6 +86,50 @@ export default function ListingForm({
   const [aiBusy, setAiBusy] = useState(false);
   const [aiErr, setAiErr] = useState("");
   const set = (k: string, v: any) => setF(prev => ({ ...prev, [k]: v }));
+
+  const [builders, setBuilders] = useState<Builder[]>(initialBuilders);
+  const [addingBuilder, setAddingBuilder] = useState(false);
+  const [nb, setNb] = useState({ name: "", phone: "", email: "" });
+  const [nbErr, setNbErr] = useState("");
+  const [nbBusy, setNbBusy] = useState(false);
+  const pickedBuilder = builders.find(b => b.id === f.builder_id);
+
+  function pickBuilder(id: string) {
+    if (id === "__new") { setAddingBuilder(true); return; }
+    const b = builders.find(x => x.id === id);
+    setF(prev => {
+      const next: Record<string, any> = { ...prev, builder_id: id };
+      // open listing: the builder's number becomes the seller contact,
+      // unless the agent already typed a different number in
+      const prevB = builders.find(x => x.id === prev.builder_id);
+      const phoneWasBuilders = !prev.seller_phone ||
+        (prevB && phoneDigits(prevB.contact_phone) === phoneDigits(prev.seller_phone));
+      if (prev.listing_rep === "open" && b?.contact_phone && phoneWasBuilders) next.seller_phone = b.contact_phone;
+      return next;
+    });
+  }
+
+  async function saveNewBuilder() {
+    setNbErr("");
+    if (!nb.name.trim()) { setNbErr("Enter the builder's name."); return; }
+    const d = phoneDigits(nb.phone);
+    const dup = builders.find(b =>
+      b.name.trim().toLowerCase() === nb.name.trim().toLowerCase() ||
+      (d.length === 10 && phoneDigits(b.contact_phone) === d));
+    if (dup) { setNbErr(`${dup.name} is already on the list. Pick it from the dropdown.`); return; }
+    setNbBusy(true);
+    const { data, error } = await supabaseBrowser().from("builders")
+      .insert({ name: nb.name.trim(), contact_phone: nb.phone.trim() || null, contact_email: nb.email.trim() || null,
+                notes: "Added in Team W Off Market" })
+      .select("id, name, contact_phone, notes").single();
+    setNbBusy(false);
+    if (error || !data) { setNbErr(error?.message ?? "Could not add the builder."); return; }
+    setBuilders(prev => [...prev, data as Builder].sort((a, b) => a.name.localeCompare(b.name)));
+    setAddingBuilder(false);
+    setNb({ name: "", phone: "", email: "" });
+    setF(prev => ({ ...prev, builder_id: data.id,
+      seller_phone: prev.listing_rep === "open" && data.contact_phone && !prev.seller_phone ? data.contact_phone : prev.seller_phone }));
+  }
 
   async function generateDescription() {
     setAiErr(""); setAiBusy(true);
@@ -198,6 +245,7 @@ export default function ListingForm({
       listing_agent_id: open ? null : f.listing_rep,
       commission: open ? null : (f.commission || null),
       seller_phone: open ? (f.seller_phone || null) : null,
+      builder_id: f.builder_id || null,
       mls_number: f.mls_number || null,
       photos_url: f.photos_url || null,
       public_name: f.public_name.trim() || fallbackName(),
@@ -330,7 +378,7 @@ export default function ListingForm({
               <option value="open">Open listing: no listing agent</option>
             </select></div>
           {f.listing_rep === "open" ? (
-            <div>{label("Seller contact phone (optional)")}
+            <div>{label("Seller or builder phone (optional)")}
               <input className="input" type="tel" value={f.seller_phone} onChange={e => set("seller_phone", e.target.value)}
                      placeholder="845-555-1234" /></div>
           ) : (
@@ -342,6 +390,40 @@ export default function ListingForm({
         {f.listing_rep === "open" && (
           <p className="mt-3 text-sm text-slate-500">No listing agent. Agents contact the seller directly and negotiate their own commission.</p>
         )}
+
+        <div className="mt-4 pt-4 border-t border-slate-100">
+          <label className="label flex items-center gap-1.5"><HardHat size={14} /> Builder (agents only)</label>
+          <select className="input" value={f.builder_id} onChange={e => pickBuilder(e.target.value)}>
+            <option value="">Not a builder / unknown</option>
+            {builders.map(b => (
+              <option key={b.id} value={b.id}>{b.name}{b.contact_phone ? `  ·  ${b.contact_phone}` : ""}</option>
+            ))}
+            <option value="__new">+ Add a new builder...</option>
+          </select>
+          {pickedBuilder?.notes && /opted out|STOP|do not/i.test(pickedBuilder.notes) && (
+            <p className="mt-1.5 text-xs font-semibold text-red-600">{pickedBuilder.notes}</p>
+          )}
+          {f.listing_rep === "open" && pickedBuilder && !pickedBuilder.contact_phone && (
+            <p className="mt-1.5 text-xs text-slate-500">No phone on file for this builder. Add the seller phone above.</p>
+          )}
+          {addingBuilder && (
+            <div className="mt-3 rounded-btn border border-teal bg-teal-light/40 p-4">
+              <p className="text-xs font-bold text-teal">NEW BUILDER</p>
+              <div className="mt-3 grid sm:grid-cols-3 gap-3">
+                <input className="input" placeholder="Name" value={nb.name} onChange={e => setNb({ ...nb, name: e.target.value })} />
+                <input className="input" type="tel" placeholder="Phone" value={nb.phone} onChange={e => setNb({ ...nb, phone: e.target.value })} />
+                <input className="input" type="email" placeholder="Email (optional)" value={nb.email} onChange={e => setNb({ ...nb, email: e.target.value })} />
+              </div>
+              {nbErr && <p className="mt-2 text-xs text-red-600 font-semibold">{nbErr}</p>}
+              <div className="mt-3 flex gap-2">
+                <button type="button" onClick={saveNewBuilder} disabled={nbBusy} className="btn-primary !py-2 !px-4 text-sm">
+                  <Plus size={14} /> {nbBusy ? "Adding..." : "Add builder"}
+                </button>
+                <button type="button" onClick={() => { setAddingBuilder(false); setNbErr(""); }} className="btn-secondary !py-2 !px-4 text-sm">Cancel</button>
+              </div>
+            </div>
+          )}
+        </div>
       </section>
 
       {/* PHOTOS */}

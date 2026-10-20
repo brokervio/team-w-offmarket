@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase-server";
 import ListingForm, { type ExistingPhoto, type ExistingDoc, type TeamMember } from "@/components/ListingForm";
+import { type Builder } from "@/lib/builders";
 import { Lock } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +39,8 @@ export default async function EditListing({ params }: { params: { id: string } }
 
   const { data: team } = await supabase.from("profiles")
     .select("id, full_name").in("role", ["agent", "admin"]).order("full_name");
+  const { data: builders } = await supabase.from("builders")
+    .select("id, name, contact_phone, notes").order("name");
 
   const { data: media } = await supabase.from("listing_media")
     .select("id, storage_path, visibility, media_type")
@@ -66,7 +69,7 @@ export default async function EditListing({ params }: { params: { id: string } }
         <Link href="/agent/listings" className="text-sm text-teal font-semibold">&larr; Back to listings</Link>
         <h1 className="text-2xl mt-2">Edit Listing</h1>
         <ListingForm listingId={params.id} initial={listing} existingPhotos={photos} existingDocs={docs}
-                     team={(team ?? []) as TeamMember[]} currentUserId={user!.id}
+                     team={(team ?? []) as TeamMember[]} builders={(builders ?? []) as Builder[]} currentUserId={user!.id}
                      isAdmin={me?.role === "admin"} aiEnabled={!!process.env.ANTHROPIC_API_KEY} />
       </main>
     </>

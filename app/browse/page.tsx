@@ -4,11 +4,16 @@ import { type ListingRow } from "@/components/ListingCard";
 import BrowseGrid from "@/components/BrowseGrid";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase-server";
 import { townList, TYPE_LABEL, STATUS_LABEL } from "@/lib/access";
+import { builderMatchClauses, type Builder } from "@/lib/builders";
 
 export const dynamic = "force-dynamic";
 
 export default async function Browse({ searchParams }: { searchParams: Record<string,string> }) {
   const supabase = supabaseServer();
+
+  const { data: builderRows } = await supabase.from("builders")
+    .select("id, name, contact_phone").order("name");
+  const builders = (builderRows ?? []) as Builder[];
 
   let q = supabase.from("listings")
     .select("id,status,public_name,town,neighborhood_label,exact_address,price,price_max,price_display,beds,baths,sqft,property_type,delivery_date,created_at")
@@ -20,9 +25,36 @@ export default async function Browse({ searchParams }: { searchParams: Record<st
   if (searchParams.type) q = q.eq("property_type", searchParams.type);
   if (searchParams.beds) q = q.gte("beds", Number(searchParams.beds));
   if (searchParams.max) q = q.lte("price", Number(searchParams.max));
+  if (searchParams.rep === "open") q = q.eq("is_open_listing", true);
+  if (searchParams.rep === "agent") q = q.eq("is_open_listing", false);
+  if (searchParams.builder) {
+    if (searchParams.builder === "any") {
+      // every listing tied to a builder, linked or typed in by hand
+      const all = builders.flatMap(builderMatchClauses);
+      q = all.length ? q.or(all.join(",")) : q.not("builder_id", "is", null);
+    } else {
+      const b = builders.find(x => x.id === searchParams.builder);
+      if (b) q = q.or(builderMatchClauses(b).join(","));
+    }
+  }
   if (searchParams.q) {
-    const s = searchParams.q.replace(/[,()%]/g, " ").trim();
-    if (s) q = q.or(`exact_address.ilike.%${s}%,public_name.ilike.%${s}%,mls_number.ilike.%${s}%,town.ilike.%${s}%,neighborhood_label.ilike.%${s}%`);
+    const s = searchParams.q.replace(/[,()%*]/g, " ").trim();
+    if (s) {
+      const clauses = [
+        `exact_address.ilike.*${s}*`, `public_name.ilike.*${s}*`, `mls_number.ilike.*${s}*`,
+        `town.ilike.*${s}*`, `neighborhood_label.ilike.*${s}*`,
+        `seller_phone.ilike.*${s}*`, `source.ilike.*${s}*`, `notes_internal.ilike.*${s}*`
+      ];
+      const digits = s.replace(/\D/g, "");
+      if (digits.length >= 7) clauses.push(`seller_phone_digits.like.*${digits}*`);
+      // typing a builder's name also pulls that builder's listings
+      const words = s.toLowerCase().split(/\s+/).filter(Boolean);
+      for (const b of builders) {
+        const n = b.name.toLowerCase();
+        if (words.every(w => n.includes(w))) clauses.push(...builderMatchClauses(b));
+      }
+      q = q.or(clauses.join(","));
+    }
   }
 
   const { data: listings } = await q;
@@ -59,10 +91,10 @@ export default async function Browse({ searchParams }: { searchParams: Record<st
         </div>
 
         {/* FILTER BAR */}
-        <form method="get" className="mt-4 grid grid-cols-2 md:grid-cols-8 gap-2 items-end bg-white py-3 z-30 border-b border-slate-100">
+        <form method="get" className="mt-4 grid grid-cols-2 md:grid-cols-5 lg:grid-cols-10 gap-2 items-end bg-white py-3 z-30 border-b border-slate-100">
           <div className="col-span-2"><label className="label !mb-1">Search</label>
             <input name="q" defaultValue={searchParams.q ?? ""} className={sel}
-                   placeholder="Address, MLS, area..." /></div>
+                   placeholder="Address, builder, phone, area..." /></div>
           <div><label className="label !mb-1">Town</label>
             <select name="town" defaultValue={searchParams.town ?? ""} className={sel}>
               <option value="">All towns</option>
@@ -87,6 +119,18 @@ export default async function Browse({ searchParams }: { searchParams: Record<st
               <option value="">Active (default)</option>
               {Object.entries(STATUS_LABEL).filter(([v]) => v !== "pending").map(([v,l]) =>
                 <option key={v} value={v}>{l}</option>)}
+            </select></div>
+          <div><label className="label !mb-1">Listing</label>
+            <select name="rep" defaultValue={searchParams.rep ?? ""} className={sel}>
+              <option value="">All</option>
+              <option value="open">Open listings</option>
+              <option value="agent">Has listing agent</option>
+            </select></div>
+          <div><label className="label !mb-1">Builder</label>
+            <select name="builder" defaultValue={searchParams.builder ?? ""} className={sel}>
+              <option value="">All builders</option>
+              <option value="any">Any builder</option>
+              {builders.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select></div>
           <button className="btn-primary !py-2 text-sm">Search</button>
         </form>
