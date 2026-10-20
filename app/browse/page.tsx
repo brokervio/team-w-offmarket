@@ -26,7 +26,8 @@ export default async function Browse({ searchParams }: { searchParams: Record<st
   if (searchParams.beds) q = q.gte("beds", Number(searchParams.beds));
   if (searchParams.max) q = q.lte("price", Number(searchParams.max));
   if (searchParams.rep === "open") q = q.eq("is_open_listing", true);
-  if (searchParams.rep === "agent") q = q.eq("is_open_listing", false);
+  if (searchParams.rep === "agent") q = q.eq("is_open_listing", false).eq("is_outside_listing", false);
+  if (searchParams.rep === "outside") q = q.eq("is_outside_listing", true);
   if (searchParams.builder) {
     if (searchParams.builder === "any") {
       // every listing tied to a builder, linked or typed in by hand
@@ -43,7 +44,8 @@ export default async function Browse({ searchParams }: { searchParams: Record<st
       const clauses = [
         `exact_address.ilike.*${s}*`, `public_name.ilike.*${s}*`, `mls_number.ilike.*${s}*`,
         `town.ilike.*${s}*`, `neighborhood_label.ilike.*${s}*`,
-        `seller_phone.ilike.*${s}*`, `source.ilike.*${s}*`, `notes_internal.ilike.*${s}*`
+        `seller_phone.ilike.*${s}*`, `source.ilike.*${s}*`, `notes_internal.ilike.*${s}*`,
+        `outside_agent_name.ilike.*${s}*`, `outside_brokerage.ilike.*${s}*`, `outside_agent_phone.ilike.*${s}*`
       ];
       const digits = s.replace(/\D/g, "");
       if (digits.length >= 7) clauses.push(`seller_phone_digits.like.*${digits}*`);
@@ -94,7 +96,7 @@ export default async function Browse({ searchParams }: { searchParams: Record<st
         <form method="get" className="mt-4 grid grid-cols-2 md:grid-cols-5 lg:grid-cols-10 gap-2 items-end bg-white py-3 z-30 border-b border-slate-100">
           <div className="col-span-2"><label className="label !mb-1">Search</label>
             <input name="q" defaultValue={searchParams.q ?? ""} className={sel}
-                   placeholder="Address, builder, phone, area..." /></div>
+                   placeholder="Address, builder, agent, phone..." /></div>
           <div><label className="label !mb-1">Town</label>
             <select name="town" defaultValue={searchParams.town ?? ""} className={sel}>
               <option value="">All towns</option>
@@ -124,7 +126,8 @@ export default async function Browse({ searchParams }: { searchParams: Record<st
             <select name="rep" defaultValue={searchParams.rep ?? ""} className={sel}>
               <option value="">All</option>
               <option value="open">Open listings</option>
-              <option value="agent">Has listing agent</option>
+              <option value="agent">Team W listing agent</option>
+              <option value="outside">Other brokerage</option>
             </select></div>
           <div><label className="label !mb-1">Builder</label>
             <select name="builder" defaultValue={searchParams.builder ?? ""} className={sel}>

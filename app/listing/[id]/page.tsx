@@ -192,6 +192,20 @@ export default async function ListingDetail({ params }: { params: { id: string }
                     </a>
                   )}
                 </>
+              ) : l.is_outside_listing ? (
+                <>
+                  <p className="mt-2 font-semibold text-navy">{l.outside_agent_name ?? "Outside agent"}</p>
+                  <p className="text-sm text-slate-600">{l.outside_brokerage ? l.outside_brokerage + " (outside brokerage)" : "Outside brokerage"}</p>
+                  {l.outside_agent_phone && (
+                    <a href={"tel:" + l.outside_agent_phone} className="mt-2 block text-teal font-semibold">{l.outside_agent_phone}</a>
+                  )}
+                  {l.outside_agent_email && (
+                    <a href={"mailto:" + l.outside_agent_email} className="block text-teal font-semibold text-sm">{l.outside_agent_email}</a>
+                  )}
+                  {l.commission && (
+                    <p className="text-sm text-slate-600 mt-1">Co-broke: <span className="font-semibold text-navy">{l.commission}</span></p>
+                  )}
+                </>
               ) : (
                 <>
                   <p className="mt-2 font-semibold text-navy">{listingAgent?.full_name ?? "No listing agent set"}</p>

@@ -57,7 +57,12 @@ export default function ListingForm({
     sqft: initial?.sqft ?? "",
     lot_desc: initial?.lot_desc ?? "",
     // representation
-    listing_rep: initial?.is_open_listing ? "open" : (initial?.listing_agent_id ?? currentUserId),
+    listing_rep: initial?.is_open_listing ? "open" : initial?.is_outside_listing ? "outside"
+      : (initial?.listing_agent_id ?? currentUserId),
+    outside_agent_name: initial?.outside_agent_name ?? "",
+    outside_brokerage: initial?.outside_brokerage ?? "",
+    outside_agent_phone: initial?.outside_agent_phone ?? "",
+    outside_agent_email: initial?.outside_agent_email ?? "",
     commission: initial?.commission ?? "",
     seller_phone: initial?.seller_phone ?? "",
     builder_id: initial?.builder_id ?? "",
@@ -218,6 +223,9 @@ export default function ListingForm({
   async function save() {
     setErr("");
     if (!f.exact_address.trim()) { setErr("Enter the property address."); return; }
+    if (f.listing_rep === "outside" && !f.outside_agent_name.trim()) {
+      setErr("Enter the name of the agent who has this listing."); return;
+    }
     setBusy(true);
 
     const fallbackName = () => {
@@ -228,6 +236,7 @@ export default function ListingForm({
     };
 
     const open = f.listing_rep === "open";
+    const outside = f.listing_rep === "outside";
     const payload: Record<string, any> = {
       exact_address: f.exact_address.trim(),
       town: f.town,
@@ -242,8 +251,13 @@ export default function ListingForm({
       sqft: f.sqft ? Number(f.sqft) : null,
       lot_desc: f.lot_desc || null,
       is_open_listing: open,
-      listing_agent_id: open ? null : f.listing_rep,
+      is_outside_listing: outside,
+      listing_agent_id: open || outside ? null : f.listing_rep,
       commission: open ? null : (f.commission || null),
+      outside_agent_name: outside ? (f.outside_agent_name.trim() || null) : null,
+      outside_brokerage: outside ? (f.outside_brokerage.trim() || null) : null,
+      outside_agent_phone: outside ? (f.outside_agent_phone.trim() || null) : null,
+      outside_agent_email: outside ? (f.outside_agent_email.trim() || null) : null,
       seller_phone: open ? (f.seller_phone || null) : null,
       builder_id: f.builder_id || null,
       mls_number: f.mls_number || null,
@@ -375,6 +389,7 @@ export default function ListingForm({
           <div>{label("Who represents this listing?")}
             <select className="input" value={f.listing_rep} onChange={e => set("listing_rep", e.target.value)}>
               {repChoices.map(m => <option key={m.id} value={m.id}>{m.full_name || "Unnamed"}{m.id === currentUserId ? " (me)" : ""}</option>)}
+              <option value="outside">Agent at another brokerage</option>
               <option value="open">Open listing: no listing agent</option>
             </select></div>
           {f.listing_rep === "open" ? (
@@ -382,11 +397,27 @@ export default function ListingForm({
               <input className="input" type="tel" value={f.seller_phone} onChange={e => set("seller_phone", e.target.value)}
                      placeholder="845-555-1234" /></div>
           ) : (
-            <div>{label("Commission offered")}
+            <div>{label(f.listing_rep === "outside" ? "Co-broke offered to Team W" : "Commission offered")}
               <input className="input" value={f.commission} onChange={e => set("commission", e.target.value)}
                      placeholder="2% or $5,000 flat" /></div>
           )}
         </div>
+        {f.listing_rep === "outside" && (
+          <div className="mt-4 grid sm:grid-cols-2 gap-4">
+            <div>{label("Agent name")}
+              <input className="input" value={f.outside_agent_name} onChange={e => set("outside_agent_name", e.target.value)} /></div>
+            <div>{label("Brokerage")}
+              <input className="input" value={f.outside_brokerage} onChange={e => set("outside_brokerage", e.target.value)} /></div>
+            <div>{label("Agent phone")}
+              <input className="input" type="tel" value={f.outside_agent_phone} onChange={e => set("outside_agent_phone", e.target.value)}
+                     placeholder="845-555-1234" /></div>
+            <div>{label("Agent email (optional)")}
+              <input className="input" type="email" value={f.outside_agent_email} onChange={e => set("outside_agent_email", e.target.value)} /></div>
+          </div>
+        )}
+        {f.listing_rep === "outside" && (
+          <p className="mt-3 text-sm text-slate-500">Held by an outside agent. Team W agents call that agent to show it. Their details stay internal.</p>
+        )}
         {f.listing_rep === "open" && (
           <p className="mt-3 text-sm text-slate-500">No listing agent. Agents contact the seller directly and negotiate their own commission.</p>
         )}
