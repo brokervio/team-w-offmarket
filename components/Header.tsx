@@ -27,6 +27,7 @@ export default async function Header() {
             <Link href="/agent/needs" className="text-navy hover:text-teal">Buyers</Link>
             <Link href="/agent/intel" className="text-navy hover:text-teal hidden sm:inline">Intel</Link>
             <Link href="/agent/links" className="text-navy hover:text-teal hidden md:inline">Links</Link>
+            <Link href="/agent/builders" className="text-navy hover:text-teal hidden sm:inline">Builders</Link>
             <Link href="/agent/listings" className="text-navy hover:text-teal hidden sm:inline">Manage</Link>
             {profile?.role === "admin" && (
               <Link href="/admin" className="text-navy hover:text-teal">Admin</Link>

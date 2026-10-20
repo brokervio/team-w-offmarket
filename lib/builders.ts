@@ -25,3 +25,18 @@ export function builderMatchClauses(b: Builder): string[] {
   }
   return out;
 }
+
+// Same rules as builderMatchClauses, run in memory (for counts).
+export function listingMatchesBuilder(
+  l: { builder_id: string | null; seller_phone: string | null; seller_phone_digits?: string | null; source: string | null },
+  b: Builder
+) {
+  if (l.builder_id === b.id) return true;
+  const d = phoneDigits(b.contact_phone);
+  if (d.length === 10 && (l.seller_phone_digits ?? "").includes(d)) return true;
+  const name = b.name.replace(/\(.*?\)/g, " ").replace(/[,()%*]/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+  if (name && !name.includes("@") && name.includes(" ")) {
+    if ((l.seller_phone ?? "").toLowerCase().includes(name) || (l.source ?? "").toLowerCase().includes(name)) return true;
+  }
+  return false;
+}
