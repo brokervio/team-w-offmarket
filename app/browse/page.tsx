@@ -10,6 +10,9 @@ export const dynamic = "force-dynamic";
 
 export default async function Browse({ searchParams }: { searchParams: Record<string,string> }) {
   const supabase = supabaseServer();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: me } = await supabase.from("profiles")
+    .select("full_name, phone, avatar_path").eq("id", user!.id).single();
 
   const { data: builderRows } = await supabase.from("builders")
     .select("id, name, contact_phone").order("name");
@@ -140,7 +143,8 @@ export default async function Browse({ searchParams }: { searchParams: Record<st
 
         {/* GRID with multi-select for client links */}
         <BrowseGrid listings={(listings ?? []).map(l =>
-          ({ ...l, cover_url: covers[l.id], photo_count: counts[l.id] ?? 0 } as ListingRow))} />
+          ({ ...l, cover_url: covers[l.id], photo_count: counts[l.id] ?? 0 } as ListingRow))}
+          sender={{ name: me?.full_name ?? "", phone: me?.phone?.trim() ?? "", hasPhoto: !!me?.avatar_path }} />
       </main>
       <Footer />
     </>

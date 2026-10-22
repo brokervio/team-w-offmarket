@@ -2,10 +2,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Link2, Mail, Check, Printer } from "lucide-react";
+import ProfileNudge, { type Sender } from "./ProfileNudge";
 
-export default function ShareActions({ listingId, addressLine, publicName, town }: {
-  listingId: string; addressLine: string; publicName: string; town: string;
+export default function ShareActions({ listingId, addressLine, publicName, town, sender }: {
+  listingId: string; addressLine: string; publicName: string; town: string; sender: Sender;
 }) {
+  const [err, setErr] = useState("");
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [shareAddress, setShareAddress] = useState(false);
@@ -16,7 +18,12 @@ export default function ShareActions({ listingId, addressLine, publicName, town 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ listing_id: listingId, show_address: shareAddress })
     });
-    if (!r.ok) return null;
+    if (!r.ok) {
+      const body = await r.json().catch(() => ({}));
+      setErr(body.error ?? "Could not create the link.");
+      return null;
+    }
+    setErr("");
     const { token } = await r.json();
     return `${window.location.origin}/share/${token}`;
   }
@@ -39,7 +46,7 @@ export default function ShareActions({ listingId, addressLine, publicName, town 
     const what = shareAddress ? addressLine : `${publicName} in ${town}`;
     const subject = encodeURIComponent(`Off-market opportunity in ${town}`);
     const body = encodeURIComponent(
-      `Hi,\n\nI wanted to show you an off-market property that is not publicly listed:\n\n${what}\n\nFull details and photos here:\n${url}\n\nThis link is private, please do not forward it. Call or reply if you want to see it.\n\nTeam W Realty\n845-422-5238`
+      `Hi,\n\nI wanted to show you an off-market property that is not publicly listed:\n\n${what}\n\nFull details and photos here:\n${url}\n\nThis link is private, please do not forward it. Call or reply if you want to see it.\n\n${sender.name}\nTeam W Realty\n${sender.phone}`
     );
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
   }
@@ -67,6 +74,8 @@ export default function ShareActions({ listingId, addressLine, publicName, town 
           <Printer size={15} /> Print flyer
         </Link>
       </div>
+      {err && <p className="mt-2 text-xs text-red-600 font-semibold">{err}</p>}
+      <ProfileNudge sender={sender} />
     </div>
   );
 }

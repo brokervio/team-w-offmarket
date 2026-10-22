@@ -48,7 +48,7 @@ export default async function SharedCollectionListing({ params }: {
       .createSignedUrl(agent.avatar_path, 86400);
     if (av) avatarUrl = av.signedUrl;
   }
-  const agentPhone = agent?.phone || "845-422-5238";
+  const agentPhone = agent?.phone || "845-533-6565";
   const headline = col.show_address && l.exact_address ? l.exact_address : l.public_name;
 
   return (

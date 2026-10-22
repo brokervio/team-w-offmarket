@@ -2,10 +2,11 @@
 import { useState } from "react";
 import ListingCard, { type ListingRow } from "./ListingCard";
 import { Check, Link2, Mail, X } from "lucide-react";
+import ProfileNudge, { type Sender } from "./ProfileNudge";
 
 // Browse grid with multi-select: pick several listings and generate
 // one client link that shows them all.
-export default function BrowseGrid({ listings }: { listings: ListingRow[] }) {
+export default function BrowseGrid({ listings, sender }: { listings: ListingRow[]; sender: Sender }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [shareAddress, setShareAddress] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -53,7 +54,7 @@ export default function BrowseGrid({ listings }: { listings: ListingRow[] }) {
     if (!url) return;
     const subject = encodeURIComponent(`${selected.size} off-market opportunities for you`);
     const body = encodeURIComponent(
-      `Hi,\n\nI put together ${selected.size} off-market properties I think you should see. They are not publicly listed:\n\n${url}\n\nThis link is private, please do not forward it. Call or reply and we can go through them together.\n\nTeam W Realty\n845-422-5238`
+      `Hi,\n\nI put together ${selected.size} off-market properties I think you should see. They are not publicly listed:\n\n${url}\n\nThis link is private, please do not forward it. Call or reply and we can go through them together.\n\n${sender.name}\nTeam W Realty\n${sender.phone}`
     );
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
   }
@@ -109,6 +110,7 @@ export default function BrowseGrid({ listings }: { listings: ListingRow[] }) {
               </div>
             </div>
             {err && <p className="mt-2 text-xs text-red-600 font-semibold">{err}</p>}
+            <ProfileNudge sender={sender} />
             <p className="mt-2 text-xs text-slate-400">
               One private link with all selected properties. Addresses stay hidden unless you check the box.
             </p>

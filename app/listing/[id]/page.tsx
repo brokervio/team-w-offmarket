@@ -31,7 +31,7 @@ export default async function ListingDetail({ params }: { params: { id: string }
   if (!l) notFound();
 
   const { data: me } = await supabase.from("profiles")
-    .select("role").eq("id", user!.id).single();
+    .select("role, full_name, phone, avatar_path").eq("id", user!.id).single();
   const canEdit = me?.role === "admin" || l.created_by === user!.id;
 
   const { data: media } = await supabase.from("listing_media")
@@ -158,7 +158,8 @@ export default async function ListingDetail({ params }: { params: { id: string }
               </div>
             ) : (
               <ShareActions listingId={l.id} addressLine={l.exact_address || l.public_name}
-                            publicName={l.public_name} town={l.town} />
+                            publicName={l.public_name} town={l.town}
+                            sender={{ name: me?.full_name ?? "", phone: me?.phone?.trim() ?? "", hasPhoto: !!me?.avatar_path }} />
             )}
 
             {buyerMatches.length > 0 && (
