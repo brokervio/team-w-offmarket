@@ -22,15 +22,27 @@ export function formatPrice(l: { price: number | null; price_max: number | null;
   return f(l.price);
 }
 
+// Active = complete listing (address, city/state, beds, baths, description).
+// Draft = missing information. See lib/listing-rules.ts.
 export const STATUS_LABEL: Record<string,string> = {
+  active: "Active",
   draft: "Draft",
-  pending: "Pending",
-  coming_soon: "Coming Soon",
-  available: "Available",
-  in_contract: "In Contract",
+  under_contract: "Under Contract",
   sold: "Sold",
   archived: "Archived",
   private_build: "Private Build - Not for Sale"
+};
+
+// Statuses a buyer could still purchase (used by buyer-need matching).
+export const SELLABLE_STATUSES = ["active", "draft", "under_contract"];
+
+export const STATUS_STYLE: Record<string, string> = {
+  active: "bg-teal text-white",
+  draft: "bg-amber-100 text-amber-800",
+  under_contract: "bg-navy text-white",
+  sold: "bg-slate-700 text-white",
+  archived: "bg-slate-200 text-slate-600",
+  private_build: "bg-rose-100 text-rose-700 border border-rose-300"
 };
 
 export const TYPE_LABEL: Record<string,string> = {

@@ -27,3 +27,11 @@ export function supabaseAdmin() {
     { auth: { persistSession: false } }
   );
 }
+
+// One auth check per page request, shared by the page and the Header.
+// Without this, every page asked the auth server twice, back to back.
+import { cache } from "react";
+export const getCurrentUser = cache(async () => {
+  const { data: { user } } = await supabaseServer().auth.getUser();
+  return user;
+});

@@ -4,18 +4,18 @@ import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-client";
 import { compressImage } from "@/lib/compress";
 import { phoneDigits, type Builder } from "@/lib/builders";
+import { activeMissing } from "@/lib/listing-rules";
 import { Lock, Upload, Trash2, ImagePlus, UserCheck, Sparkles, FileText, Paperclip, HardHat, Plus } from "lucide-react";
 
 const TOWNS = ["Monsey","Spring Valley","Airmont","Suffern","Nanuet","New Hempstead","Pomona","Wesley Hills","New Square","Monroe","Kiryas Joel","Monticello","Chester","Other"];
 
 const STATUS_OPTIONS = [
-  { value: "draft", label: "Draft (only visible in Manage)" },
-  { value: "coming_soon", label: "Coming Soon" },
-  { value: "available", label: "Available" },
-  { value: "in_contract", label: "In Contract" },
+  { value: "active", label: "Active" },
+  { value: "draft", label: "Draft (missing info)" },
+  { value: "under_contract", label: "Under Contract" },
   { value: "sold", label: "Sold" },
-  { value: "private_build", label: "Private build (not for sale)" },
-  { value: "archived", label: "Archived (hidden)" }
+  { value: "archived", label: "Archived (hidden)" },
+  { value: "private_build", label: "Private Build (not for sale)" }
 ];
 
 export type ExistingPhoto = { id: string; url: string };
@@ -47,7 +47,7 @@ export default function ListingForm({
     exact_address: initial?.exact_address ?? "",
     town: initial?.town ?? "Monsey",
     property_type: initial?.property_type ?? "new_construction",
-    status: initial?.status ?? "available",
+    status: initial?.status ?? "active",
     delivery_date: initial?.delivery_date ?? "",
     price_display: initial?.price_display ?? "exact",
     price: initial?.price ?? "",
@@ -220,9 +220,19 @@ export default function ListingForm({
     if (r.ok) setDocs(prev => prev.filter(d => d.id !== id));
   }
 
-  async function save() {
-    setErr("");
+  const missing = activeMissing(f);
+  const [blocked, setBlocked] = useState(false);
+
+  async function save(statusOverride?: string) {
+    setErr(""); setBlocked(false);
+    const status = statusOverride ?? f.status;
+    if (statusOverride) set("status", statusOverride);
     if (!f.exact_address.trim()) { setErr("Enter the property address."); return; }
+    if (status === "active" && missing.length) {
+      setErr("To mark this Active, add " + missing.join(", ") + ".");
+      setBlocked(true);
+      return;
+    }
     if (f.listing_rep === "outside" && !f.outside_agent_name.trim()) {
       setErr("Enter the name of the agent who has this listing."); return;
     }
@@ -241,7 +251,7 @@ export default function ListingForm({
       exact_address: f.exact_address.trim(),
       town: f.town,
       property_type: f.property_type,
-      status: f.status,
+      status,
       delivery_date: f.delivery_date || null,
       price_display: f.price_display,
       price: f.price ? Number(f.price) : null,
@@ -326,6 +336,10 @@ export default function ListingForm({
     if (msg.toLowerCase().includes("street address")) {
       return "Blocked for safety: the marketing name or description appears to contain a street address. Addresses stay internal. Remove it from those fields and save again.";
     }
+    if (msg.includes("Active listings need")) {
+      setBlocked(true);
+      return msg;
+    }
     if (msg.toLowerCase().includes("row-level security")) {
       return "You can only edit listings you added. Ask an admin to make this change.";
     }
@@ -340,7 +354,7 @@ export default function ListingForm({
       <section className="mt-5 card p-5">
         <p className="text-xs font-bold text-teal">PROPERTY</p>
         <div className="mt-4 space-y-4">
-          <div>{label("Address")}
+          <div>{label("Full address (number, street, city, state)")}
             <input ref={addressInput} className="input" value={f.exact_address}
                    onChange={e => set("exact_address", e.target.value)}
                    onBlur={suggestPublicName} placeholder="45 Summit Avenue, Monticello, NY" /></div>
@@ -359,7 +373,10 @@ export default function ListingForm({
             <div>{label("Status")}
               <select className="input" value={f.status} onChange={e => set("status", e.target.value)}>
                 {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </select></div>
+              </select>
+              {f.status === "active" && missing.length > 0 && (
+                <p className="mt-1 text-xs text-amber-700">Needs {missing.length} more item{missing.length > 1 ? "s" : ""} to be Active</p>
+              )}</div>
             <div>{label("Delivery date")}
               <input className="input" type="date" value={f.delivery_date} onChange={e => set("delivery_date", e.target.value)} /></div>
           </div>
@@ -600,9 +617,13 @@ export default function ListingForm({
       </section>
 
       {err && <p className="mt-4 text-sm text-red-600 font-semibold">{err}</p>}
+      {blocked && (
+        <button type="button" onClick={() => save("draft")} disabled={busy}
+                className="btn-secondary !py-2 !px-4 text-sm mt-2">Save as Draft for now</button>
+      )}
       {progress && <p className="mt-4 text-sm text-teal font-semibold">{progress}</p>}
       <div className="mt-5 flex gap-3">
-        <button onClick={save} disabled={busy} className="btn-primary flex-1">
+        <button onClick={() => save()} disabled={busy} className="btn-primary flex-1">
           <Upload size={16} /> {busy ? "Saving..." : listingId ? "Save Changes" : "Save Listing"}
         </button>
       </div>

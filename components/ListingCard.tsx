@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { BedDouble, Bath, Ruler, MapPin, Camera } from "lucide-react";
-import { formatPrice, STATUS_LABEL, TYPE_LABEL } from "@/lib/access";
+import { formatPrice, STATUS_LABEL, STATUS_STYLE, TYPE_LABEL } from "@/lib/access";
 
 // Internal staff view: exact address is shown. This card is only ever
 // rendered behind the login wall.
@@ -13,16 +13,6 @@ export type ListingRow = {
   cover_url?: string | null; photo_count?: number;
 };
 
-const STATUS_STYLE: Record<string, string> = {
-  draft: "bg-amber-100 text-amber-800",
-  pending: "bg-amber-100 text-amber-800",
-  coming_soon: "bg-teal-light text-teal border border-teal",
-  available: "bg-teal text-white",
-  in_contract: "bg-navy text-white",
-  sold: "bg-slate-700 text-white",
-  archived: "bg-slate-200 text-slate-600",
-  private_build: "bg-rose-100 text-rose-700 border border-rose-300"
-};
 
 export default function ListingCard({ l }: { l: ListingRow }) {
   return (

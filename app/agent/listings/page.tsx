@@ -2,21 +2,11 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase-server";
-import { STATUS_LABEL } from "@/lib/access";
+import { STATUS_LABEL, STATUS_STYLE } from "@/lib/access";
 import { Pencil } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_STYLE: Record<string, string> = {
-  draft: "bg-amber-100 text-amber-800",
-  pending: "bg-amber-100 text-amber-800",
-  coming_soon: "bg-teal-light text-teal border border-teal",
-  available: "bg-teal text-white",
-  in_contract: "bg-navy text-white",
-  sold: "bg-slate-700 text-white",
-  archived: "bg-slate-200 text-slate-600",
-  private_build: "bg-rose-100 text-rose-700 border border-rose-300"
-};
 
 export default async function AgentListings() {
   const supabase = supabaseServer();

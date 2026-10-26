@@ -3,23 +3,13 @@ import Footer from "@/components/Footer";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase-server";
-import { formatPrice, STATUS_LABEL, TYPE_LABEL } from "@/lib/access";
+import { formatPrice, STATUS_LABEL, STATUS_STYLE, TYPE_LABEL } from "@/lib/access";
 import { BedDouble, Bath, Ruler, MapPin, Pencil, Lock, Camera, CalendarDays, UserCheck, ExternalLink, FileText } from "lucide-react";
 import ShareActions from "@/components/ShareActions";
 import { needMatchesListing, type BuyerNeed } from "@/lib/match";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_STYLE: Record<string, string> = {
-  draft: "bg-amber-100 text-amber-800",
-  pending: "bg-amber-100 text-amber-800",
-  coming_soon: "bg-teal-light text-teal border border-teal",
-  available: "bg-teal text-white",
-  in_contract: "bg-navy text-white",
-  sold: "bg-slate-700 text-white",
-  archived: "bg-slate-200 text-slate-600",
-  private_build: "bg-rose-100 text-rose-700 border border-rose-300"
-};
 
 export default async function ListingDetail({ params }: { params: { id: string } }) {
   const supabase = supabaseServer();

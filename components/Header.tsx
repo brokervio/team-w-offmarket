@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { supabaseServer } from "@/lib/supabase-server";
+import { supabaseServer, getCurrentUser } from "@/lib/supabase-server";
 import SignOutButton from "./SignOutButton";
 import { Plus } from "lucide-react";
 
 export default async function Header() {
   const supabase = supabaseServer();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   let profile: { role: string; full_name: string | null } | null = null;
   if (user) {
     const { data } = await supabase.from("profiles")
