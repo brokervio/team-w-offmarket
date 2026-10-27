@@ -53,7 +53,7 @@ export default async function SharedCollection({ params }: { params: { token: st
       .createSignedUrl(agent.avatar_path, 86400);
     if (av) avatarUrl = av.signedUrl;
   }
-  const agentPhone = agent?.phone || "845-422-5238";
+  const agentPhone = agent?.phone || "845-533-6565";
 
   return (
     <div className="min-h-screen bg-surface">

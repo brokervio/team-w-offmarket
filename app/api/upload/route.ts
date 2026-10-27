@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase-server";
+import { canEditListing } from "@/lib/permissions";
 
 // Photos are uploaded through the server so the private storage buckets
 // never need public policies. Staff only.
@@ -8,12 +9,20 @@ async function requireStaff() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
   const { data: p } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  return p && ["agent", "admin"].includes(p.role) ? user : null;
+  return p && ["agent", "admin"].includes(p.role) ? { user, role: p.role as string } : null;
+}
+
+// Same edit rule as the listing itself: open = any agent, otherwise the
+// listing agent (or whoever added it), admins always.
+async function mayEdit(listingId: string, userId: string, role: string) {
+  const { data: l } = await supabaseAdmin().from("listings")
+    .select("is_open_listing, listing_agent_id, created_by").eq("id", listingId).single();
+  return !!l && canEditListing(l, userId, role);
 }
 
 export async function POST(req: Request) {
-  const user = await requireStaff();
-  if (!user) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  const me = await requireStaff();
+  if (!me) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
 
   const form = await req.formData();
   const file = form.get("file") as File | null;
@@ -22,6 +31,9 @@ export async function POST(req: Request) {
   const kind = (form.get("kind") as string | null) ?? "photo";
   if (!file || !listingId) {
     return NextResponse.json({ error: "Missing file or listing_id" }, { status: 400 });
+  }
+  if (!(await mayEdit(listingId, me.user.id, me.role))) {
+    return NextResponse.json({ error: "You can't edit this listing." }, { status: 403 });
   }
 
   // "photo" goes to the public bucket (shareable with clients).
@@ -74,16 +86,19 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const user = await requireStaff();
-  if (!user) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  const me = await requireStaff();
+  if (!me) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
 
   const { media_id } = await req.json();
   if (!media_id) return NextResponse.json({ error: "Missing media_id" }, { status: 400 });
 
   const admin = supabaseAdmin();
   const { data: row } = await admin.from("listing_media")
-    .select("id, storage_path, visibility").eq("id", media_id).single();
+    .select("id, storage_path, visibility, listing_id").eq("id", media_id).single();
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!(await mayEdit(row.listing_id, me.user.id, me.role))) {
+    return NextResponse.json({ error: "You can't edit this listing." }, { status: 403 });
+  }
 
   const bucket = row.visibility === "internal" ? "listing-media-internal" : "listing-media-public";
   await admin.storage.from(bucket).remove([row.storage_path]);

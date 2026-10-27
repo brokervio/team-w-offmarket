@@ -139,9 +139,6 @@ export default function PublicSite({ total, listings, buyer, openHome }: {
                           <span className="text-sm font-semibold">Photos on request</span>
                         </div>
                       )}
-                      {l.status === "coming_soon" && (
-                        <span className="absolute top-3 left-3 rounded-full bg-white text-navy-dark text-xs font-bold px-3 py-1">Coming soon</span>
-                      )}
                     </div>
                     <div className="p-4">
                       <div className="flex items-baseline justify-between gap-3">

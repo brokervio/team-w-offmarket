@@ -2,7 +2,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { type ListingRow } from "@/components/ListingCard";
 import BrowseGrid from "@/components/BrowseGrid";
-import { supabaseServer, supabaseAdmin } from "@/lib/supabase-server";
+import { supabaseServer, supabaseAdmin, getCurrentUser } from "@/lib/supabase-server";
 import { townList, TYPE_LABEL, STATUS_LABEL } from "@/lib/access";
 import { builderMatchClauses, type Builder } from "@/lib/builders";
 
@@ -10,10 +10,16 @@ export const dynamic = "force-dynamic";
 
 export default async function Browse({ searchParams }: { searchParams: Record<string,string> }) {
   const supabase = supabaseServer();
-
-  const { data: builderRows } = await supabase.from("builders")
-    .select("id, name, contact_phone").order("name");
+  // Run the independent lookups together instead of one after another.
+  // Each round trip to the database costs time; doing them in parallel
+  // is the single biggest speed win on this page.
+  const [user, { data: builderRows }] = await Promise.all([
+    getCurrentUser(),
+    supabase.from("builders").select("id, name, contact_phone").order("name")
+  ]);
   const builders = (builderRows ?? []) as Builder[];
+  const meQuery = supabase.from("profiles")
+    .select("full_name, phone, avatar_path").eq("id", user!.id).single();
 
   let q = supabase.from("listings")
     .select("id,status,public_name,town,neighborhood_label,exact_address,price,price_max,price_display,beds,baths,sqft,property_type,delivery_date,created_at")
@@ -59,9 +65,10 @@ export default async function Browse({ searchParams }: { searchParams: Record<st
     }
   }
 
-  const { data: listings } = await q;
+  const [{ data: me }, { data: listings }] = await Promise.all([meQuery, q]);
 
-  // cover photo + photo count per listing (signed URLs via server-side admin client)
+  // cover photo + photo count per listing. Signed URLs are requested in one
+  // batch per bucket (previously one request per listing, in sequence).
   const ids = (listings ?? []).map(l => l.id);
   const covers: Record<string, string> = {};
   const counts: Record<string, number> = {};
@@ -70,15 +77,20 @@ export default async function Browse({ searchParams }: { searchParams: Record<st
       .select("listing_id, storage_path, visibility")
       .in("listing_id", ids).eq("media_type", "photo")
       .order("sort_order");
-    const admin = supabaseAdmin();
+    const firstByBucket: Record<string, { listing_id: string; path: string }[]> = {};
     for (const m of media ?? []) {
       counts[m.listing_id] = (counts[m.listing_id] ?? 0) + 1;
-      if (!covers[m.listing_id]) {
+      if (counts[m.listing_id] === 1) {
         const bucket = m.visibility === "internal" ? "listing-media-internal" : "listing-media-public";
-        const { data: signed } = await admin.storage.from(bucket).createSignedUrl(m.storage_path, 3600);
-        if (signed) covers[m.listing_id] = signed.signedUrl;
+        (firstByBucket[bucket] ??= []).push({ listing_id: m.listing_id, path: m.storage_path });
       }
     }
+    const admin = supabaseAdmin();
+    await Promise.all(Object.entries(firstByBucket).map(async ([bucket, items]) => {
+      const { data: signed } = await admin.storage.from(bucket)
+        .createSignedUrls(items.map(i => i.path), 3600);
+      (signed ?? []).forEach((sg, i) => { if (sg?.signedUrl) covers[items[i].listing_id] = sg.signedUrl; });
+    }));
   }
 
   const sel = "input !py-2 text-sm";
@@ -118,8 +130,8 @@ export default async function Browse({ searchParams }: { searchParams: Record<st
             </select></div>
           <div><label className="label !mb-1">Status</label>
             <select name="status" defaultValue={searchParams.status ?? ""} className={sel}>
-              <option value="">Active (default)</option>
-              {Object.entries(STATUS_LABEL).filter(([v]) => v !== "pending").map(([v,l]) =>
+              <option value="">All except archived</option>
+              {Object.entries(STATUS_LABEL).map(([v,l]) =>
                 <option key={v} value={v}>{l}</option>)}
             </select></div>
           <div><label className="label !mb-1">Listing</label>
@@ -140,7 +152,8 @@ export default async function Browse({ searchParams }: { searchParams: Record<st
 
         {/* GRID with multi-select for client links */}
         <BrowseGrid listings={(listings ?? []).map(l =>
-          ({ ...l, cover_url: covers[l.id], photo_count: counts[l.id] ?? 0 } as ListingRow))} />
+          ({ ...l, cover_url: covers[l.id], photo_count: counts[l.id] ?? 0 } as ListingRow))}
+          sender={{ name: me?.full_name ?? "", phone: me?.phone?.trim() ?? "", hasPhoto: !!me?.avatar_path }} />
       </main>
       <Footer />
     </>

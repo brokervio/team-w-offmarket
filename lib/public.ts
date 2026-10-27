@@ -8,7 +8,11 @@ import { needMatchesListing, type BuyerNeed } from "@/lib/match";
 
 export const BUYER_COOKIE = "tw_buyer";
 const ACCESS_DAYS = Number(process.env.ACCESS_INITIAL_DAYS || 14);
-export const ACTIVE = ["available", "coming_soon"];
+// Only complete (Active) listings are ever shown to the public.
+export const ACTIVE = ["active"];
+// The headline count and buyer matching include Drafts too: they are real
+// inventory, and nothing about them is displayed.
+export const INVENTORY = ["active", "draft"];
 
 export type PublicListing = {
   id: string; status: string; town: string; neighborhood_label: string | null;
@@ -100,7 +104,7 @@ export async function getPublicListing(id: string) {
 // Counts only. Private listings are never described publicly.
 export async function inventoryCount() {
   const { count } = await supabaseAdmin().from("listings")
-    .select("id", { count: "exact", head: true }).in("status", ACTIVE);
+    .select("id", { count: "exact", head: true }).in("status", INVENTORY);
   return count ?? 0;
 }
 
@@ -114,7 +118,7 @@ export function buyerAsNeed(b: Pick<WebBuyer, "beds_min" | "budget_max" | "area"
 
 export async function matchCount(b: Pick<WebBuyer, "beds_min" | "budget_max" | "area">) {
   const { data } = await supabaseAdmin().from("listings")
-    .select("id, status, town, property_type, beds, price").in("status", ACTIVE);
+    .select("id, status, town, property_type, beds, price").in("status", INVENTORY);
   const need = buyerAsNeed(b);
   return (data ?? []).filter(l => needMatchesListing(need, l as any)).length;
 }

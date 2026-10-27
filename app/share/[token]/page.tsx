@@ -45,7 +45,7 @@ export default async function SharedListing({ params }: { params: { token: strin
       .createSignedUrl(agent.avatar_path, 86400);
     if (av) avatarUrl = av.signedUrl;
   }
-  const agentPhone = agent?.phone || "845-422-5238";
+  const agentPhone = agent?.phone || "845-533-6565";
   // Address only appears if the agent chose to share it
   const headline = share.show_address && l.exact_address ? l.exact_address : l.public_name;
 

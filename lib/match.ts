@@ -12,7 +12,7 @@ export type MatchableListing = {
   beds: number | null; price: number | null;
 };
 
-const SELLABLE = ["draft", "coming_soon", "available", "in_contract"];
+import { SELLABLE_STATUSES as SELLABLE } from "./access";
 
 export function needMatchesListing(need: BuyerNeed, l: MatchableListing): boolean {
   if (!SELLABLE.includes(l.status)) return false;

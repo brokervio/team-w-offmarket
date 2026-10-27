@@ -2,31 +2,21 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase-server";
-import { STATUS_LABEL } from "@/lib/access";
+import { STATUS_LABEL, STATUS_STYLE } from "@/lib/access";
 import { Pencil } from "lucide-react";
+import { canEditListing } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_STYLE: Record<string, string> = {
-  draft: "bg-amber-100 text-amber-800",
-  pending: "bg-amber-100 text-amber-800",
-  coming_soon: "bg-teal-light text-teal border border-teal",
-  available: "bg-teal text-white",
-  in_contract: "bg-navy text-white",
-  sold: "bg-slate-700 text-white",
-  archived: "bg-slate-200 text-slate-600",
-  private_build: "bg-rose-100 text-rose-700 border border-rose-300"
-};
 
 export default async function AgentListings() {
   const supabase = supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   const { data: me } = await supabase.from("profiles")
     .select("role").eq("id", user!.id).single();
-  const isAdmin = me?.role === "admin";
 
   const { data: listings } = await supabase.from("listings")
-    .select("id, status, public_name, town, exact_address, created_at, created_by, show_public")
+    .select("id, status, public_name, town, exact_address, created_at, created_by, is_open_listing, listing_agent_id, show_public")
     .order("created_at", { ascending: false });
 
   return (
@@ -43,14 +33,14 @@ export default async function AgentListings() {
               <Link href={"/listing/" + l.id} className="min-w-0 flex-1 group">
                 <p className="font-semibold text-navy truncate group-hover:text-teal">{l.exact_address || l.public_name}</p>
                 <p className="text-sm text-slate-500 truncate">
-                  {l.town} | Added {new Date(l.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  {l.town}{l.is_open_listing ? " | Open listing, anyone can edit" : ""} | Added {new Date(l.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                 </p>
               </Link>
               {l.show_public && <span className="badge shrink-0 bg-teal-light text-teal border border-teal" title="On the public buyer site">Public</span>}
               <span className={"badge shrink-0 " + (STATUS_STYLE[l.status] ?? "badge-gray")}>
                 {STATUS_LABEL[l.status] ?? l.status}
               </span>
-              {(isAdmin || l.created_by === user!.id) && (
+              {canEditListing(l, user!.id, me?.role) && (
                 <Link href={"/agent/listings/" + l.id} className="btn-secondary !py-1.5 !px-3 text-sm shrink-0">
                   <Pencil size={14} /> Edit
                 </Link>

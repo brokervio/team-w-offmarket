@@ -15,7 +15,7 @@ export default async function AdminPanel() {
     supabase.from("profiles").select("id, full_name, phone, contact_email, role, created_at")
       .in("role", ["agent", "admin"]).order("created_at"),
     supabase.from("listings").select("id", { count: "exact", head: true })
-      .in("status", ["coming_soon", "available", "in_contract"]),
+      .eq("status", "active"),
     supabase.from("listings").select("id", { count: "exact", head: true })
       .eq("status", "draft"),
     admin.auth.admin.listUsers()
@@ -41,7 +41,7 @@ export default async function AdminPanel() {
         <h1 className="text-2xl md:text-3xl">Admin</h1>
 
         <div className="mt-5 grid grid-cols-3 gap-3">
-          <Kpi n={String(liveCount ?? 0)} l="Live Listings" />
+          <Kpi n={String(liveCount ?? 0)} l="Active Listings" />
           <Kpi n={String(draftCount ?? 0)} l="Drafts" />
           <Kpi n={String(staff?.length ?? 0)} l="Team Members" />
         </div>

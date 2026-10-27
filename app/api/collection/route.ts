@@ -6,9 +6,13 @@ export async function POST(req: Request) {
   const supabase = supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  const { data: me } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  const { data: me } = await supabase.from("profiles").select("role, phone").eq("id", user.id).single();
   if (!me || !["agent", "admin"].includes(me.role)) {
     return NextResponse.json({ error: "Staff only" }, { status: 403 });
+  }
+  // the client page shows the sender's own number, so it has to be on file
+  if (!me.phone || !me.phone.trim()) {
+    return NextResponse.json({ error: "Add your cell number on My Profile first. Clients see your number on the link.", code: "profile_incomplete" }, { status: 400 });
   }
 
   const { listing_ids, show_address } = await req.json();

@@ -51,8 +51,7 @@ export default async function PublicHome({ params }: { params: { id: string } })
 
         <div className="mt-8 grid lg:grid-cols-[1fr_340px] gap-10">
           <div>
-            {l.status === "coming_soon" && <span className="inline-block rounded-full bg-teal-light text-navy-dark text-xs font-bold px-3 py-1 mb-3">Coming soon</span>}
-            <h1 className="font-display font-extrabold text-navy-dark text-[34px] sm:text-[44px] leading-[1.05] tracking-[-0.02em]">{c.price}</h1>
+                        <h1 className="font-display font-extrabold text-navy-dark text-[34px] sm:text-[44px] leading-[1.05] tracking-[-0.02em]">{c.price}</h1>
             <p className="mt-1 text-lg text-slate-600">{c.kind}, {c.area}</p>
             <div className="mt-5 flex flex-wrap gap-x-6 gap-y-3 text-slate-700">
               {l.beds != null && <span className="flex items-center gap-2"><BedDouble size={18} className="text-teal" /> {l.beds} bedrooms</span>}
