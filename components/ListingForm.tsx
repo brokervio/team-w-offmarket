@@ -23,8 +23,12 @@ export type ExistingDoc = { id: string; url: string; name: string };
 export type TeamMember = { id: string; full_name: string | null };
 
 export default function ListingForm({
-  listingId, initial, existingPhotos = [], existingDocs = [], team, builders: initialBuilders = [], currentUserId, isAdmin = false, aiEnabled = false
+  listingId, initial, existingPhotos = [], existingDocs = [], team, builders: initialBuilders = [], currentUserId, isAdmin = false, aiEnabled = false,
+  lockRepresentation = false
 }: {
+  // true when an agent edits someone else's open listing: they can update
+  // the details but can't claim it or hand it to another agent.
+  lockRepresentation?: boolean;
   builders?: Builder[];
   listingId?: string;
   initial?: Record<string, any>;
@@ -404,7 +408,8 @@ export default function ListingForm({
         <p className="text-xs font-bold text-teal flex items-center gap-1.5"><UserCheck size={14} /> LISTING AGENT</p>
         <div className="mt-4 grid sm:grid-cols-2 gap-4">
           <div>{label("Who represents this listing?")}
-            <select className="input" value={f.listing_rep} onChange={e => set("listing_rep", e.target.value)}>
+            <select className="input" value={f.listing_rep} onChange={e => set("listing_rep", e.target.value)}
+                    disabled={lockRepresentation}>
               {repChoices.map(m => <option key={m.id} value={m.id}>{m.full_name || "Unnamed"}{m.id === currentUserId ? " (me)" : ""}</option>)}
               <option value="outside">Agent at another brokerage</option>
               <option value="open">Open listing: no listing agent</option>
@@ -436,7 +441,10 @@ export default function ListingForm({
           <p className="mt-3 text-sm text-slate-500">Held by an outside agent. Team W agents call that agent to show it. Their details stay internal.</p>
         )}
         {f.listing_rep === "open" && (
-          <p className="mt-3 text-sm text-slate-500">No listing agent. Agents contact the seller directly and negotiate their own commission.</p>
+          <p className="mt-3 text-sm text-slate-500">No listing agent. Agents contact the seller directly and negotiate their own commission. Any Team W agent can edit an open listing.</p>
+        )}
+        {lockRepresentation && (
+          <p className="mt-1 text-xs text-slate-500">Only the agent who added this open listing, or an admin, can change who represents it.</p>
         )}
 
         <div className="mt-4 pt-4 border-t border-slate-100">

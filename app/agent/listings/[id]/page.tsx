@@ -5,18 +5,20 @@ import { supabaseServer, supabaseAdmin } from "@/lib/supabase-server";
 import ListingForm, { type ExistingPhoto, type ExistingDoc, type TeamMember } from "@/components/ListingForm";
 import { type Builder } from "@/lib/builders";
 import { Lock } from "lucide-react";
+import { canEditListing, editRuleText } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
 export default async function EditListing({ params }: { params: { id: string } }) {
   const supabase = supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
-  const { data: listing } = await supabase.from("listings").select("*").eq("id", params.id).single();
+  const { data: listing } = await supabase.from("listings")
+    .select("*, listing_agent:listing_agent_id(full_name)").eq("id", params.id).single();
   if (!listing) notFound();
 
   const { data: me } = await supabase.from("profiles")
     .select("role").eq("id", user!.id).single();
-  const canEdit = me?.role === "admin" || listing.created_by === user!.id;
+  const canEdit = canEditListing(listing, user!.id, me?.role);
 
   if (!canEdit) {
     return (
@@ -28,8 +30,8 @@ export default async function EditListing({ params }: { params: { id: string } }
             <Lock size={28} className="mx-auto text-navy" />
             <h1 className="text-xl mt-3">This is not your listing</h1>
             <p className="text-sm text-slate-500 mt-2">
-              Only the agent who added a listing can edit it. Admins can edit everything.
-              Ask an admin if something here needs to change.
+              {editRuleText(listing, (listing.listing_agent as { full_name: string | null } | null)?.full_name)}
+              {" "}Ask them or an admin if something here needs to change.
             </p>
           </div>
         </main>
@@ -68,9 +70,11 @@ export default async function EditListing({ params }: { params: { id: string } }
       <main className="max-w-3xl mx-auto px-4 py-6">
         <Link href="/agent/listings" className="text-sm text-teal font-semibold">&larr; Back to listings</Link>
         <h1 className="text-2xl mt-2">Edit Listing</h1>
-        <ListingForm listingId={params.id} initial={listing} existingPhotos={photos} existingDocs={docs}
+        <ListingForm listingId={params.id} initial={{ ...listing, listing_agent: undefined }} existingPhotos={photos} existingDocs={docs}
                      team={(team ?? []) as TeamMember[]} builders={(builders ?? []) as Builder[]} currentUserId={user!.id}
-                     isAdmin={me?.role === "admin"} aiEnabled={!!process.env.ANTHROPIC_API_KEY} />
+                     isAdmin={me?.role === "admin"}
+                     lockRepresentation={me?.role !== "admin" && !!listing.is_open_listing && listing.created_by !== user!.id}
+                     aiEnabled={!!process.env.ANTHROPIC_API_KEY} />
       </main>
     </>
   );

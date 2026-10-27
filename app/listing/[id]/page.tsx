@@ -3,6 +3,7 @@ import Footer from "@/components/Footer";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase-server";
+import { canEditListing } from "@/lib/permissions";
 import { formatPrice, STATUS_LABEL, STATUS_STYLE, TYPE_LABEL } from "@/lib/access";
 import { BedDouble, Bath, Ruler, MapPin, Pencil, Lock, Camera, CalendarDays, UserCheck, ExternalLink, FileText } from "lucide-react";
 import ShareActions from "@/components/ShareActions";
@@ -22,7 +23,7 @@ export default async function ListingDetail({ params }: { params: { id: string }
 
   const { data: me } = await supabase.from("profiles")
     .select("role, full_name, phone, avatar_path").eq("id", user!.id).single();
-  const canEdit = me?.role === "admin" || l.created_by === user!.id;
+  const canEdit = canEditListing(l, user!.id, me?.role);
 
   const { data: media } = await supabase.from("listing_media")
     .select("id, storage_path, visibility, media_type")
