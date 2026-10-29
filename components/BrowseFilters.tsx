@@ -20,8 +20,9 @@ export default function BrowseFilters({
   const [pending, startTransition] = useTransition();
 
   const [q, setQ] = useState(params.get("q") ?? "");
-  const [min, setMin] = useState(params.get("min") ?? "");
-  const [max, setMax] = useState(params.get("max") ?? "");
+  const fmt = (v: string | null) => (v ? "$" + Number(v).toLocaleString() : "");
+  const [min, setMin] = useState(fmt(params.get("min")));
+  const [max, setMax] = useState(fmt(params.get("max")));
   const timer = useRef<ReturnType<typeof setTimeout>>();
 
   function go(patch: Record<string, string>) {
@@ -41,7 +42,16 @@ export default function BrowseFilters({
   }
   useEffect(() => () => clearTimeout(timer.current), []);
 
-  const money = (v: string) => v.replace(/[^\d]/g, "");
+  // "500" or "500k" = 500,000; "1.2m" = 1,200,000; plain numbers as typed.
+  // Bare numbers under 10,000 are read as thousands.
+  const money = (v: string) => {
+    const t = v.toLowerCase().replace(/[$,\s]/g, "");
+    const n = parseFloat(t);
+    if (!t || isNaN(n)) return "";
+    const val = t.endsWith("m") ? n * 1e6 : t.endsWith("k") || n < 10000 ? n * 1e3 : n;
+    return String(Math.round(val));
+  };
+  const pretty = (v: string) => { const m = money(v); return m ? "$" + Number(m).toLocaleString() : ""; };
   const sel = "input !py-2 text-sm";
   const pick = (name: string) => ({
     name,
@@ -49,8 +59,6 @@ export default function BrowseFilters({
     className: sel,
     onChange: (e: React.ChangeEvent<HTMLSelectElement>) => go({ [name]: e.target.value })
   });
-  const priceSteps = [300000, 400000, 500000, 600000, 700000, 800000, 900000, 1000000,
-                      1250000, 1500000, 2000000, 2500000, 3000000];
 
   return (
     <form onSubmit={e => { e.preventDefault(); go({ q: q.trim(), min: money(min), max: money(max) }); }}
@@ -84,14 +92,13 @@ export default function BrowseFilters({
           <option value="">Any</option>{[2,3,4,5].map(b => <option key={b} value={b}>{b}+</option>)}
         </select></div>
       <div><label className="label !mb-1">Min price</label>
-        <input value={min} list="price-steps" inputMode="numeric" className={sel} placeholder="No min"
+        <input value={min} inputMode="decimal" className={sel} placeholder="e.g. 500k"
+               onBlur={e => setMin(pretty(e.target.value))}
                onChange={e => { setMin(e.target.value); later({ q: q.trim(), min: money(e.target.value), max: money(max) }); }} /></div>
       <div><label className="label !mb-1">Max price</label>
-        <input value={max} list="price-steps" inputMode="numeric" className={sel} placeholder="No max"
+        <input value={max} inputMode="decimal" className={sel} placeholder="e.g. 700k"
+               onBlur={e => setMax(pretty(e.target.value))}
                onChange={e => { setMax(e.target.value); later({ q: q.trim(), min: money(min), max: money(e.target.value) }); }} /></div>
-      <datalist id="price-steps">
-        {priceSteps.map(p => <option key={p} value={p}>${(p / 1000).toLocaleString()}k</option>)}
-      </datalist>
       <div><label className="label !mb-1">Status</label>
         <select {...pick("status")}>
           <option value="">All except archived</option>
