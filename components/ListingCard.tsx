@@ -10,7 +10,7 @@ export type ListingRow = {
   price: number | null; price_max: number | null; price_display: string;
   beds: number | null; baths: number | null; sqft: number | null;
   property_type: string; delivery_date?: string | null;
-  cover_url?: string | null; photo_count?: number;
+  cover_url?: string | null; photo_count?: number; is_fsbo?: boolean;
 };
 
 
@@ -28,9 +28,12 @@ export default function ListingCard({ l }: { l: ListingRow }) {
             <span className="text-xs font-semibold">No photos yet</span>
           </div>
         )}
-        <span className={"absolute top-3 left-3 badge " + (STATUS_STYLE[l.status] ?? "badge-gray")}>
+        <div className="absolute top-3 left-3 flex gap-1.5">
+          <span className={"badge " + (STATUS_STYLE[l.status] ?? "badge-gray")}>
           {STATUS_LABEL[l.status] ?? l.status}
         </span>
+          {l.is_fsbo && <span className="badge bg-amber-400 text-navy">FSBO</span>}
+        </div>
         {(l.photo_count ?? 0) > 1 && (
           <span className="absolute bottom-3 right-3 badge bg-navy/80 text-white flex items-center gap-1">
             <Camera size={12} /> {l.photo_count}

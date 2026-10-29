@@ -9,10 +9,24 @@ export function isActive(expiresAt: string | null): boolean {
   return new Date(expiresAt).getTime() > Date.now();
 }
 
+// Every village and hamlet in Rockland County (towns of Clarkstown,
+// Haverstraw, Orangetown, Ramapo and Stony Point), A to Z.
+export const ROCKLAND_TOWNS = [
+  "Airmont","Bardonia","Blauvelt","Central Nyack","Chestnut Ridge","Congers",
+  "Garnerville","Grand View-on-Hudson","Haverstraw","Hillburn","Hillcrest",
+  "Jones Point","Kaser","Monsey","Montebello","Mount Ivy","Nanuet","New City",
+  "New Hempstead","New Square","Nyack","Orangeburg","Palisades","Pearl River",
+  "Piermont","Pomona","Rockland Lake","Sloatsburg","South Nyack","Sparkill",
+  "Spring Valley","Stony Point","Suffern","Tallman","Tappan","Thiells",
+  "Tomkins Cove","Upper Nyack","Valley Cottage","Viola","Wesley Hills",
+  "West Haverstraw","West Nyack"
+];
+
+// Places outside Rockland where Team W lists.
+export const OUTSIDE_TOWNS = ["Chester","Kiryas Joel","Monroe","Monticello","Other"];
+
 export function townList(): string[] {
-  return ["Monsey","Spring Valley","Airmont","Suffern","Nanuet","New Hempstead",
-          "Pomona","Wesley Hills","New Square","Monroe","Kiryas Joel",
-          "Monticello","Chester","Other"];
+  return [...ROCKLAND_TOWNS, ...OUTSIDE_TOWNS];
 }
 
 export function formatPrice(l: { price: number | null; price_max: number | null; price_display: string }) {

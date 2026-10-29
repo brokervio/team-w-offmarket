@@ -5,9 +5,9 @@ import { supabaseBrowser } from "@/lib/supabase-client";
 import { compressImage } from "@/lib/compress";
 import { phoneDigits, type Builder } from "@/lib/builders";
 import { activeMissing } from "@/lib/listing-rules";
+import { ROCKLAND_TOWNS, OUTSIDE_TOWNS } from "@/lib/access";
 import { Lock, Upload, Trash2, ImagePlus, UserCheck, Sparkles, FileText, Paperclip, HardHat, Plus } from "lucide-react";
 
-const TOWNS = ["Monsey","Spring Valley","Airmont","Suffern","Nanuet","New Hempstead","Pomona","Wesley Hills","New Square","Monroe","Kiryas Joel","Monticello","Chester","Other"];
 
 const STATUS_OPTIONS = [
   { value: "active", label: "Active" },
@@ -80,6 +80,7 @@ export default function ListingForm({
     // internal
     cobroke_terms: initial?.cobroke_terms ?? "",
     source: initial?.source ?? "",
+    is_fsbo: initial?.is_fsbo ?? false,
     notes_internal: initial?.notes_internal ?? ""
   });
   const [files, setFiles] = useState<File[]>([]);
@@ -281,6 +282,7 @@ export default function ListingForm({
       description_public: f.description_public || null,
       cobroke_terms: f.cobroke_terms || null,
       source: f.source || null,
+      is_fsbo: !!f.is_fsbo,
       notes_internal: f.notes_internal || null
     };
 
@@ -365,7 +367,14 @@ export default function ListingForm({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div>{label("Town")}
               <select className="input" value={f.town} onChange={e => set("town", e.target.value)}>
-                {TOWNS.map(t => <option key={t}>{t}</option>)}
+                {/* keep an older town value selectable even if it is no longer in the list */}
+                {![...ROCKLAND_TOWNS, ...OUTSIDE_TOWNS].includes(f.town) && f.town && <option>{f.town}</option>}
+                <optgroup label="Rockland County">
+                  {ROCKLAND_TOWNS.map(t => <option key={t}>{t}</option>)}
+                </optgroup>
+                <optgroup label="Outside Rockland">
+                  {OUTSIDE_TOWNS.map(t => <option key={t}>{t}</option>)}
+                </optgroup>
               </select></div>
             <div>{label("Type")}
               <select className="input" value={f.property_type} onChange={e => set("property_type", e.target.value)}>
@@ -619,6 +628,10 @@ export default function ListingForm({
             <div>{label("Source")}
               <input className="input" value={f.source} onChange={e => set("source", e.target.value)} placeholder="Builder direct, referral..." /></div>
           </div>
+          <label className="flex items-center gap-2 text-sm font-semibold text-navy cursor-pointer w-fit">
+            <input type="checkbox" checked={!!f.is_fsbo} onChange={e => set("is_fsbo", e.target.checked)} />
+            For sale by owner (FSBO)
+          </label>
           <div>{label("Internal notes")}
             <textarea className="input" rows={2} value={f.notes_internal} onChange={e => set("notes_internal", e.target.value)} /></div>
         </div>

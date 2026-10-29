@@ -1,28 +1,62 @@
+import { Suspense } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { type ListingRow } from "@/components/ListingCard";
 import BrowseGrid from "@/components/BrowseGrid";
+import BrowseFilters from "@/components/BrowseFilters";
 import { supabaseServer, supabaseAdmin, getCurrentUser } from "@/lib/supabase-server";
-import { townList, TYPE_LABEL, STATUS_LABEL } from "@/lib/access";
+import { ROCKLAND_TOWNS, OUTSIDE_TOWNS, TYPE_LABEL, STATUS_LABEL } from "@/lib/access";
 import { builderMatchClauses, type Builder } from "@/lib/builders";
 
 export const dynamic = "force-dynamic";
 
+// The filter bar renders right away and stays put. Only the results
+// below it reload when a filter changes, so dropdowns search instantly
+// without the page blanking out.
 export default async function Browse({ searchParams }: { searchParams: Record<string,string> }) {
   const supabase = supabaseServer();
-  // Run the independent lookups together instead of one after another.
-  // Each round trip to the database costs time; doing them in parallel
-  // is the single biggest speed win on this page.
-  const [user, { data: builderRows }] = await Promise.all([
-    getCurrentUser(),
-    supabase.from("builders").select("id, name, contact_phone").order("name")
-  ]);
+  const { data: builderRows } = await supabase.from("builders").select("id, name, contact_phone").order("name");
   const builders = (builderRows ?? []) as Builder[];
+  const opts = (r: Record<string,string>) => Object.entries(r).map(([value, label]) => ({ value, label }));
+
+  return (
+    <>
+      <Header />
+      <main className="max-w-7xl mx-auto px-4 py-6 min-h-[70vh]">
+        <h1 className="text-2xl md:text-3xl">Inventory</h1>
+        <BrowseFilters rockland={ROCKLAND_TOWNS} outside={OUTSIDE_TOWNS}
+          types={opts(TYPE_LABEL)} statuses={opts(STATUS_LABEL)}
+          builders={builders.map(b => ({ value: b.id, label: b.name }))} />
+        <Suspense key={JSON.stringify(searchParams)} fallback={<ResultsSkeleton />}>
+          <Results searchParams={searchParams} builders={builders} />
+        </Suspense>
+      </main>
+      <Footer />
+    </>
+  );
+}
+
+function ResultsSkeleton() {
+  return (
+    <>
+      <p className="mt-4 text-sm text-slate-500 font-semibold">Searching...</p>
+      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="card h-72 animate-pulse bg-slate-100" />
+        ))}
+      </div>
+    </>
+  );
+}
+
+async function Results({ searchParams, builders }: { searchParams: Record<string,string>; builders: Builder[] }) {
+  const supabase = supabaseServer();
+  const user = await getCurrentUser();
   const meQuery = supabase.from("profiles")
     .select("full_name, phone, avatar_path").eq("id", user!.id).single();
 
   let q = supabase.from("listings")
-    .select("id,status,public_name,town,neighborhood_label,exact_address,price,price_max,price_display,beds,baths,sqft,property_type,delivery_date,created_at")
+    .select("id,status,public_name,town,neighborhood_label,exact_address,price,price_max,price_display,beds,baths,sqft,property_type,delivery_date,created_at,is_fsbo")
     .order("created_at", { ascending: false });
 
   if (searchParams.status) q = q.eq("status", searchParams.status);
@@ -30,7 +64,12 @@ export default async function Browse({ searchParams }: { searchParams: Record<st
   if (searchParams.town) q = q.eq("town", searchParams.town);
   if (searchParams.type) q = q.eq("property_type", searchParams.type);
   if (searchParams.beds) q = q.gte("beds", Number(searchParams.beds));
-  if (searchParams.max) q = q.lte("price", Number(searchParams.max));
+  const min = Number((searchParams.min ?? "").replace(/\D/g, ""));
+  const max = Number((searchParams.max ?? "").replace(/\D/g, ""));
+  if (min) q = q.gte("price", min);
+  if (max) q = q.lte("price", max);
+  if (searchParams.fsbo === "only") q = q.eq("is_fsbo", true);
+  if (searchParams.fsbo === "hide") q = q.eq("is_fsbo", false);
   if (searchParams.rep === "open") q = q.eq("is_open_listing", true);
   if (searchParams.rep === "agent") q = q.eq("is_open_listing", false).eq("is_outside_listing", false);
   if (searchParams.rep === "outside") q = q.eq("is_outside_listing", true);
@@ -93,69 +132,13 @@ export default async function Browse({ searchParams }: { searchParams: Record<st
     }));
   }
 
-  const sel = "input !py-2 text-sm";
-
   return (
     <>
-      <Header />
-      <main className="max-w-7xl mx-auto px-4 py-6 min-h-[70vh]">
-        <div className="flex items-baseline justify-between gap-3">
-          <h1 className="text-2xl md:text-3xl">Inventory</h1>
-          <p className="text-sm text-slate-500 font-semibold">{listings?.length ?? 0} listings</p>
-        </div>
-
-        {/* FILTER BAR */}
-        <form method="get" className="mt-4 grid grid-cols-2 md:grid-cols-5 lg:grid-cols-10 gap-2 items-end bg-white py-3 z-30 border-b border-slate-100">
-          <div className="col-span-2"><label className="label !mb-1">Search</label>
-            <input name="q" defaultValue={searchParams.q ?? ""} className={sel}
-                   placeholder="Address, builder, agent, phone..." /></div>
-          <div><label className="label !mb-1">Town</label>
-            <select name="town" defaultValue={searchParams.town ?? ""} className={sel}>
-              <option value="">All towns</option>
-              {townList().map(t => <option key={t} value={t}>{t}</option>)}
-            </select></div>
-          <div><label className="label !mb-1">Type</label>
-            <select name="type" defaultValue={searchParams.type ?? ""} className={sel}>
-              <option value="">All types</option>
-              {Object.entries(TYPE_LABEL).map(([v,l]) => <option key={v} value={v}>{l}</option>)}
-            </select></div>
-          <div><label className="label !mb-1">Beds</label>
-            <select name="beds" defaultValue={searchParams.beds ?? ""} className={sel}>
-              <option value="">Any</option>{[2,3,4,5].map(b => <option key={b} value={b}>{b}+</option>)}
-            </select></div>
-          <div><label className="label !mb-1">Max price</label>
-            <select name="max" defaultValue={searchParams.max ?? ""} className={sel}>
-              <option value="">Any</option>
-              {[500000,750000,1000000,1500000,2000000].map(p => <option key={p} value={p}>${(p/1000).toLocaleString()}k</option>)}
-            </select></div>
-          <div><label className="label !mb-1">Status</label>
-            <select name="status" defaultValue={searchParams.status ?? ""} className={sel}>
-              <option value="">All except archived</option>
-              {Object.entries(STATUS_LABEL).map(([v,l]) =>
-                <option key={v} value={v}>{l}</option>)}
-            </select></div>
-          <div><label className="label !mb-1">Listing</label>
-            <select name="rep" defaultValue={searchParams.rep ?? ""} className={sel}>
-              <option value="">All</option>
-              <option value="open">Open listings</option>
-              <option value="agent">Team W listing agent</option>
-              <option value="outside">Other brokerage</option>
-            </select></div>
-          <div><label className="label !mb-1">Builder</label>
-            <select name="builder" defaultValue={searchParams.builder ?? ""} className={sel}>
-              <option value="">All builders</option>
-              <option value="any">Any builder</option>
-              {builders.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select></div>
-          <button className="btn-primary !py-2 text-sm">Search</button>
-        </form>
-
-        {/* GRID with multi-select for client links */}
-        <BrowseGrid listings={(listings ?? []).map(l =>
-          ({ ...l, cover_url: covers[l.id], photo_count: counts[l.id] ?? 0 } as ListingRow))}
-          sender={{ name: me?.full_name ?? "", phone: me?.phone?.trim() ?? "", hasPhoto: !!me?.avatar_path }} />
-      </main>
-      <Footer />
+      <p className="mt-4 text-sm text-slate-500 font-semibold">{listings?.length ?? 0} listings</p>
+      {/* GRID with multi-select for client links */}
+      <BrowseGrid listings={(listings ?? []).map(l =>
+        ({ ...l, cover_url: covers[l.id], photo_count: counts[l.id] ?? 0 } as ListingRow))}
+        sender={{ name: me?.full_name ?? "", phone: me?.phone?.trim() ?? "", hasPhoto: !!me?.avatar_path }} />
     </>
   );
 }
